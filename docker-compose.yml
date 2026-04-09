@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: manual_file_uploader_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manualfileuploader
+      POSTGRES_USER: mfu_user
+      POSTGRES_PASSWORD: mfu_password_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - manual_file_uploader_postgres_data:/var/lib/postgresql/data
+    networks:
+      - manual_file_uploader_network
+
+volumes:
+  manual_file_uploader_postgres_data:
+    name: manual_file_uploader_postgres_data
+
+networks:
+  manual_file_uploader_network:
+    name: manual_file_uploader_network
