@@ -43,7 +43,7 @@ for approval until the user explicitly clicks Submit.
 - POST /templates/{id}/columns — saves column configurations
 - POST /templates/{id}/reviewers — saves reviewer list
 - POST /templates/{id}/submit — triggers approval workflow
-- Sample file parsed in FastAPI using Pandas — column names and
+- Sample file parsed in FastAPI using Polars — column names and
   inferred data types extracted and returned to UI
 - Fully qualified name generated server side —
   manualuploads.{uc_schema_name}.{sanitized_template_name}
@@ -152,7 +152,7 @@ equals the total required reviewer count the DDL job is triggered.
 
 ## 4. Unity Catalog Table Provisioning
 
-### 4.1 DDL Job
+### 4.1 DDL Job (triggered on template approval)
 
 #### Decision
 Non-declarative PySpark script (not DLT) used for the DDL job.
@@ -176,9 +176,11 @@ schema provisioning.
   (column IS NOT NULL)
 - UNIQUE constraint added as informational metadata only —
   NOT enforced by Delta Lake. Actual uniqueness enforced in
-  FastAPI validation layer at upload time (see section 5.3)
-- UC grants applied via GRANT SQL statements in the notebook
-  (USE CATALOG, USE SCHEMA, SELECT)
+  Polars validation layer at upload time (see section 5.3)
+- UC grants applied via GRANT SQL statements in the notebook:
+  - USE CATALOG on manualuploads catalog
+  - USE SCHEMA on the relevant schema
+  - SELECT on the newly created table
 - FastAPI polls job status via GET /api/2.1/jobs/runs/get
   using the run_id returned from job submission
 - On job success FastAPI updates template status to
@@ -195,6 +197,8 @@ schema provisioning.
 #### Implementation
 - GET /templates/approved — returns only Active templates for
   the upload dropdown, filtered by domain selection
+- Only Approved and Active templates appear in the dropdown —
+  prevents uploads to unapproved templates at the UI level
 - POST /uploads — multipart form endpoint receives domain,
   template_id and file bytes
 
@@ -238,7 +242,7 @@ Layer 2 — DLT expectations in Databricks write job (runs at
     flag failures
 - Constraint validation:
   - NOT NULL — rows where included column is empty or null
-  - UNIQUE — duplicate detection using Polars groupby
+  - UNIQUE — duplicate detection using Polars group_by
     IMPORTANT: Delta Lake does NOT enforce UNIQUE constraints.
     Polars is the only enforcement layer for uniqueness.
     This must be clearly communicated to users.
@@ -254,7 +258,8 @@ Layer 2 — DLT expectations in Databricks write job (runs at
 #### What Layer 2 (DLT) validates and enforces
 - NOT NULL enforced via DLT expect_or_drop on included columns
 - CHECK constraints enforced via DLT expect_or_drop
-- UNIQUE is NOT enforced at DLT layer — Delta limitation
+- UNIQUE is NOT enforced at DLT layer — Delta limitation,
+  enforced only in Polars layer above
 
 #### How DLT event log powers the UI stepper
 - After DLT pipeline completes FastAPI queries the DLT event
@@ -268,14 +273,6 @@ Layer 2 — DLT expectations in Databricks write job (runs at
   not what Polars predicted — making the event log the
   single source of truth for what landed in the UC table
 
-#### Validation error report
-- Row level errors collected during Polars validation (Layer 1)
-- Stored in upload_validation_errors table in PostgreSQL
-- Returned to UI as structured JSON for the error table
-  in the progress stepper
-- DLT event log summary appended to this report after
-  Layer 2 completes
-
 #### Why this separation makes sense
 - Layer 1 is the fast cheap gate — runs in milliseconds,
   catches obvious problems, sends bad files back before
@@ -286,28 +283,41 @@ Layer 2 — DLT expectations in Databricks write job (runs at
 - A user or auditor can always query the DLT event log
   to see exactly what was written and what was rejected
   and why — independent of our application logs
+
+#### Validation error report
+- Row level errors collected during Polars validation (Layer 1)
+- Stored in upload_validation_errors table in PostgreSQL
+- Returned to UI as structured JSON for the error table
+  in the progress stepper
+- DLT event log summary appended to this report after
+  Layer 2 completes
+
 ### 5.4 Upload Progress UI
 
 #### Decision
-Progress driven by polling. FastAPI returns a job_id immediately
-after receiving the upload. React polls GET /uploads/{job_id}/status
+Progress driven by polling. FastAPI returns an upload_id immediately
+after receiving the upload. React polls GET /uploads/{upload_id}/status
 every 3 seconds. FastAPI returns current step and status.
 
 #### Steps tracked
 1. file_uploaded — set immediately when Blob write completes
-2. schema_validated — set after Pandas schema check completes
-3. constraints_checked — set after Pandas constraint check
+2. schema_validated — set after Polars schema check completes
+3. constraints_checked — set after Polars constraint check
    completes. Contains row level errors if any.
-4. writing_to_catalog — set when Databricks job is submitted
-5. completed — set when Databricks run_id shows success
+4. writing_to_catalog — set when Databricks DLT job is submitted
+5. completed — set when Databricks run_id shows success and
+   DLT event log has been queried for final counts
 6. failed — set at any step that produces a terminal failure
 
 #### Implementation
 - Upload state stored in PostgreSQL upload_history table
 - Each step updates the status column and relevant counts
 - React polls every 3 seconds and updates stepper UI
+- On step 5 completion UI shows final authoritative counts
+  from DLT event log: rows written, rows dropped, expectations
+  triggered
 
-### 5.5 Data Write Job
+### 5.5 Data Write Job (triggered on validation pass)
 
 #### Decision
 DLT (Delta Live Tables) declarative pipeline used for the write
@@ -320,7 +330,7 @@ job. This is the appropriate place for DLT because:
 #### Implementation
 - Separate DLT pipeline notebook stored in databricks/ folder
 - Pipeline reads from the validated file path in Blob Storage
-  (the clean subset written by FastAPI after Pandas validation)
+  (the clean subset written by FastAPI after Polars validation)
 - DLT expectations defined dynamically from template column
   configuration fetched from PostgreSQL
 - Audit columns injected in the DLT pipeline as derived columns:
@@ -330,6 +340,8 @@ job. This is the appropriate place for DLT because:
 - Write mode (append/overwrite) configured via pipeline parameter
 - FastAPI triggers pipeline via Databricks REST API and polls
   run_id for completion
+- After completion FastAPI queries DLT event log for final
+  quality metrics to populate stepper step 4
 
 ### 5.6 Upload History
 
@@ -337,7 +349,10 @@ job. This is the appropriate place for DLT because:
 - upload_history row created at start of upload with status
   in_progress
 - Row updated at each validation step with counts and status
-- upload_validation_errors rows inserted for each bad row found
+- upload_validation_errors rows inserted for each bad row
+  found during Polars validation
+- DLT event log counts appended to upload_history record
+  after write job completes
 - Final status set to success, failed or partial on completion
 
 ---
@@ -363,19 +378,19 @@ and backend.
 
 ## 7. Technology Versions (locked)
 
-| Technology        | Version  |
-|-------------------|----------|
-| Python            | 3.11     |
-| FastAPI           | 0.110+   |
-| SQLAlchemy        | 2.0+     |
-| Alembic           | 1.13+    |
-| Polars            | 1.38.1   |
-| openpyxl          | 3.1.5    |
-| fastexcel         | 0.12.1   |
-| React             | 18+      |
-| PostgreSQL        | 15       |
-| Databricks Runtime| 14.3 LTS |
-| Delta Lake        | 3.0+     |
+| Technology         | Version   |
+|--------------------|-----------|
+| Python             | 3.11      |
+| FastAPI            | 0.110+    |
+| SQLAlchemy         | 2.0+      |
+| Alembic            | 1.13+     |
+| Polars             | 1.38.1    |
+| openpyxl           | 3.1.5     |
+| fastexcel          | 0.12.1    |
+| React              | 18+       |
+| PostgreSQL         | 15        |
+| Databricks Runtime | 14.3 LTS  |
+| Delta Lake         | 3.0+      |
 
 ---
 
@@ -399,11 +414,12 @@ and backend.
 ## 9. Key Constraints and Limitations (locked)
 
 - UNIQUE constraints are informational only in Delta Lake.
-  Uniqueness is enforced exclusively in the FastAPI Pandas
+  Uniqueness is enforced exclusively in the FastAPI Polars
   validation layer. This is a Delta Lake limitation and must
   be communicated to users.
 - DLT pipelines cannot be triggered mid-flight by another
   pipeline. Each upload gets its own pipeline run.
 - Approval tokens expire after 30 days.
-- Maximum file size for upload: 100MB (configurable via env var)
+- Maximum file size for upload: 100MB (configurable via
+  env var)
 - Supported file formats: CSV and Excel (.xlsx) only
