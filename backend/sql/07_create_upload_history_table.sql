@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS upload_history (
     template_id           UUID         NOT NULL,
     uploaded_by           VARCHAR(255) NOT NULL,
     uploaded_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     original_filename     VARCHAR(500) NOT NULL,
     stored_filename       VARCHAR(500),
     storage_path          VARCHAR(500),

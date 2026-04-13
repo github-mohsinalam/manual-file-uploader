@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS domains (
     uc_schema_name   VARCHAR(100) NOT NULL,
     description      TEXT,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     created_by       VARCHAR(255),
 
     -- Constraints
