@@ -173,15 +173,16 @@ def root():
 
 
 # ---- ROUTER REGISTRATION ----
-# We will add routers here as we build them in later tasks
-# For example:
-# from app.routers import domains, templates, uploads
-# app.include_router(domains.router, prefix="/api/v1")
-# app.include_router(templates.router, prefix="/api/v1")
-# app.include_router(uploads.router, prefix="/api/v1")
-#
-# The prefix="/api/v1" means all routes in that router
-# are automatically prefixed — so a route defined as
-# @router.get("/templates") becomes GET /api/v1/templates
-# Versioning the API this way means we can add /api/v2
-# in the future without breaking existing clients
+# Each resource gets its own router file
+# We register them all here in main.py
+# The prefix="/api/v1" means routes inside these routers
+# are accessible at /api/v1/{router_prefix}/{route}
+# Example: health router has prefix "/health" so the live
+# endpoint becomes /api/v1/health/live
+
+from app.routers import health
+
+app.include_router(
+    health.router,
+    prefix="/api/v1"
+)
