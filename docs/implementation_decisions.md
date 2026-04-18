@@ -205,12 +205,20 @@ schema provisioning.
 ### 5.2 File Storage
 
 #### Decision
-Raw file written to Azure Blob Storage immediately on receipt
-before any validation runs. This ensures every submitted file
-is permanently preserved regardless of validation outcome.
+Raw file written to Azure Data Lake Storage Gen2 immediately on
+receipt before any validation runs. This ensures every submitted
+file is permanently preserved regardless of validation outcome.
+
+ADLS Gen2 chosen over plain Blob Storage because:
+- Real folders with atomic rename and delete operations
+- Native Databricks and Unity Catalog integration
+- POSIX style permissions per folder
+- Efficient listing for deep hierarchies
+- Same cost as plain Blob Storage at our scale
 
 #### Implementation
 - Azure Blob Storage SDK (azure-storage-blob Python package)
+  works transparently with ADLS Gen2 — no special SDK needed
 - Storage path: {container}/{domain}/{template_name}/
 - Filename: {template_name}_{YYYYMMDD}_{HHMMSS}.{extension}
 - Timestamp generated server side in FastAPI at moment of receipt
