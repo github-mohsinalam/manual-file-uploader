@@ -161,23 +161,66 @@ template approval and does not involve data ingestion. DLT pipelines
 are designed for ongoing streaming or batch data flows not one-time
 schema provisioning.
 
+#### Deployment approach
+All Databricks resources (DDL job, DLT pipeline, scheduled reminder
+jobs) are deployed via Databricks Asset Bundles (DABs).
+
+Rationale for DABs:
+- Infrastructure as code - Databricks jobs defined in version
+  controlled YAML not clicked through the UI
+- One command deploys all Databricks resources consistently
+- Lowers barrier for anyone cloning and setting up this open
+  source tool - they run one command instead of configuring
+  each job manually in the UI
+- Aligns with modern Databricks engineering practice
+
+#### Script format
+All Databricks code written as plain .py Python scripts.
+
+No notebook cell markers. No Databricks magic comments.
+Just regular Python with a proper entry point:
+
+    def main(template_id: str) -> None:
+        # business logic
+        ...
+
+    if __name__ == "__main__":
+        template_id = dbutils.widgets.get("template_id")
+        main(template_id)
+
+Rationale:
+- Clean, readable code with no visual clutter
+- Works as a regular Python module - can be imported and unit
+  tested by pytest without requiring Databricks
+- Standard Python project structure that any Python developer
+  understands immediately
+- Runs in Databricks as a job task with no special handling
+  needed - Databricks executes .py files natively
+
+The only Databricks specific elements are:
+- dbutils.widgets.get() to read job parameters
+- spark (automatically available in Databricks runtime)
+
+Both are isolated to the entry point block so the core business
+logic functions are pure Python that can be tested locally.
+
 #### Implementation
-- Databricks notebook stored in the databricks/ folder in the repo
-  and uploaded to Databricks workspace during setup
-- FastAPI triggers the notebook via Databricks Jobs REST API
-  (POST /api/2.1/jobs/runs/submit)
-- Notebook receives template_id as a parameter
-- Notebook reads full template definition from PostgreSQL
-- Notebook dynamically builds and executes CREATE TABLE statement
-  using Spark SQL
+- Python script stored in databricks/src/ddl_job.py
+- Script defined as a job in databricks/databricks.yml
+- Deployed to Databricks workspace via databricks bundle deploy
+- FastAPI triggers the job via Databricks Jobs REST API
+  (POST /api/2.1/jobs/runs/submit) using the job ID
+- Script receives template_id as a parameter
+- Script reads full template definition from PostgreSQL
+- Script dynamically builds and executes CREATE TABLE using Spark SQL
 - Column comments applied via ALTER TABLE ALTER COLUMN SET COMMENT
 - PII masking applied via CREATE ROW FILTER / COLUMN MASK in UC
 - NOT NULL enforced via ALTER TABLE ADD CONSTRAINT CHECK
   (column IS NOT NULL)
-- UNIQUE constraint added as informational metadata only —
+- UNIQUE constraint added as informational metadata only -
   NOT enforced by Delta Lake. Actual uniqueness enforced in
   Polars validation layer at upload time (see section 5.3)
-- UC grants applied via GRANT SQL statements in the notebook:
+- UC grants applied via GRANT SQL statements in the script:
   - USE CATALOG on manualuploads catalog
   - USE SCHEMA on the relevant schema
   - SELECT on the newly created table
@@ -335,16 +378,22 @@ job. This is the appropriate place for DLT because:
 - DLT event log provides quality metrics over time
 - DLT handles append and overwrite modes natively
 
+DLT pipeline also deployed via Databricks Asset Bundles alongside
+the DDL job. All pipeline code written as .py files per the
+project script format convention.
+
 #### Implementation
-- Separate DLT pipeline notebook stored in databricks/ folder
-- Pipeline reads from the validated file path in Blob Storage
+- DLT pipeline script stored in databricks/src/write_pipeline.py
+- Pipeline defined in databricks/databricks.yml as a pipelines
+  resource
+- Pipeline reads from the validated file path in ADLS Gen2
   (the clean subset written by FastAPI after Polars validation)
 - DLT expectations defined dynamically from template column
   configuration fetched from PostgreSQL
 - Audit columns injected in the DLT pipeline as derived columns:
-  - uploaded_by — passed as pipeline parameter
-  - uploaded_at — current_timestamp()
-  - source_file — passed as pipeline parameter
+  - uploaded_by - passed as pipeline parameter
+  - uploaded_at - current_timestamp()
+  - source_file - passed as pipeline parameter
 - Write mode (append/overwrite) configured via pipeline parameter
 - FastAPI triggers pipeline via Databricks REST API and polls
   run_id for completion
