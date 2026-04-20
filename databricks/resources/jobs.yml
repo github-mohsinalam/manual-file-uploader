@@ -1,0 +1,10 @@
+# ================================================
+# Jobs definitions
+# ================================================
+# Actual job definitions will be added in Task 5.7
+# and later tasks for the write pipeline and
+# reminder job.
+# ================================================
+
+resources:
+  jobs: {}

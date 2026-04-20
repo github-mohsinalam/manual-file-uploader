@@ -1,0 +1,46 @@
+# ================================================
+# Databricks Asset Bundle - Manual File Uploader
+# ================================================
+
+bundle:
+  name: manual_file_uploader
+
+# --------------------------------------------------
+# Variables
+# --------------------------------------------------
+# Variables let different targets (dev, staging, prod)
+# use different values for the same bundle definition.
+#
+# For example the catalog name in dev might be
+# "manualuploads_dev" while in prod it is "manualuploads_prod".
+variables:
+  catalog_name:
+    description: "Unity Catalog to use for tables"
+    default: "manualuploads"
+  
+  notification_email:
+    description: "Email to notify on job failure"
+    default: ""
+
+# --------------------------------------------------
+# Include additional YAML files
+# --------------------------------------------------
+# Keeps the main databricks.yml readable by splitting
+# resource definitions across separate files.
+# Each file under resources/ is merged in automatically.
+include:
+  - resources/*.yml
+
+# --------------------------------------------------
+# Deployment targets
+# --------------------------------------------------
+# Each target represents a Databricks workspace or
+# environment. Start with just dev - add prod later.
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: adb-7405617857783898.18.azuredatabricks.net
+    variables:
+      catalog_name: manualuploads_dev

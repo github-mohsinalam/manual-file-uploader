@@ -1,0 +1,10 @@
+# DAB-generated artifacts
+.databricks/
+
+# Python compiled files
+__pycache__/
+*.pyc
+*.pyo
+
+# Test artifacts
+.pytest_cache/
