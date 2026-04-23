@@ -61,7 +61,7 @@ def execute_idempotent_mask(spark_session, mask_statement: str) -> None:
             raise
 
 
-def run_ddl_job(template_id: str, spark_session) -> None:
+def run_ddl_job(template_id: str, spark_session, dbutils) -> None:
     """
     Orchestrate the full DDL job execution.
 
@@ -73,7 +73,7 @@ def run_ddl_job(template_id: str, spark_session) -> None:
 
     # Step 1 - Fetch config from PostgreSQL
     print("\nFetching template configuration from PostgreSQL...")
-    config = load_template_config(template_id)
+    config = load_template_config(spark_session, dbutils, template_id)
     fqn = config["fully_qualified_name"]
     print(f"  Template: {fqn}")
     print(f"  Columns: {len(config['columns'])}")
@@ -110,12 +110,31 @@ def run_ddl_job(template_id: str, spark_session) -> None:
         print("\nNo PII columns - skipping masking setup.")
 
     # Step 4 - Apply GRANT statements
+    # Forgiving behavior - if the reader group does not exist
+    # in Databricks, log a warning and continue. Other grant
+    # failures remain fatal.
     grants = build_grant_statements(config)
     if grants:
         print("\nApplying reader group grants...")
+        reader_group = config.get("reader_group")
         for grant in grants:
-            spark_session.sql(grant)
-            print(f"  Granted: {grant}")
+            try:
+                spark_session.sql(grant)
+                print(f"  Granted: {grant}")
+            except Exception as grant_error:
+                error_message = str(grant_error).lower()
+                is_missing_principal = (
+                    "principal_does_not_exist" in error_message
+                    or "could not find principal" in error_message
+                )
+                if is_missing_principal:
+                    print(
+                        f"  WARNING: Reader group '{reader_group}' does not exist. "
+                        f"Skipped grant: {grant}"
+                    )
+                else:
+                    # Any other grant failure - re-raise
+                    raise
     else:
         print("\nNo reader_group configured - skipping grants.")
 
@@ -133,11 +152,16 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Obtain dbutils explicitly - required when running as a
+    # spark_python_task (as opposed to a notebook where dbutils
+    # is injected automatically).
+    from pyspark.dbutils import DBUtils
+    dbutils = DBUtils(spark)  # noqa: F821
+
     try:
         # spark is automatically available in Databricks runtime
-        run_ddl_job(args.template_id, spark)  # noqa: F821
+        run_ddl_job(args.template_id, spark, dbutils)  # noqa: F821
     except Exception as error:
         print(f"\nDDL job FAILED: {error}")
         traceback.print_exc()
-        # Exit with non-zero status so Databricks marks the job as FAILED
         sys.exit(1)

@@ -5,41 +5,42 @@ Provides functions to fetch template metadata from the Azure
 PostgreSQL database using Spark's JDBC reader.
 
 Credentials are read from the 'mfu-dev' Databricks secret scope.
+This keeps them out of code and out of logs.
 
 All database access goes through this module. Individual Databricks
 jobs import from here and never talk JDBC directly.
+
+Design note:
+    Both spark and dbutils are passed in from the entry point
+    rather than imported globally. This keeps the module
+    testable - callers can inject mock objects during testing -
+    and avoids runtime import issues specific to how Databricks
+    spark_python_task injects globals.
 """
-
-from typing import Optional
-
-# The spark and dbutils objects are automatically available in
-# the Databricks runtime. They are imported through the runtime,
-# not from a Python package. Do not try to pip install them.
-
 
 SECRET_SCOPE = "mfu-dev"
 
 
-def _build_jdbc_url() -> str:
+def _build_jdbc_url(dbutils) -> str:
     """Build the JDBC URL from secrets."""
-    host = dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-host")   
-    port = dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-port")   
-    db = dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-db")       
+    host = dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-host")
+    port = dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-port")
+    db = dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-db")
     # sslmode=require is mandatory for Azure Database for PostgreSQL
     return f"jdbc:postgresql://{host}:{port}/{db}?sslmode=require"
 
 
-def _get_jdbc_options() -> dict:
+def _get_jdbc_options(dbutils) -> dict:
     """Return a dict of JDBC options including credentials."""
     return {
-        "url": _build_jdbc_url(),
-        "user": dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-user"),   
-        "password": dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-password"),   
+        "url": _build_jdbc_url(dbutils),
+        "user": dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-user"),
+        "password": dbutils.secrets.get(scope=SECRET_SCOPE, key="postgres-password"),
         "driver": "org.postgresql.Driver",
     }
 
 
-def _read_query_as_rows(query: str) -> list:
+def _read_query_as_rows(spark, dbutils, query: str) -> list:
     """
     Execute a SQL query against PostgreSQL and return the result
     as a list of dicts - one dict per row with column names as keys.
@@ -47,10 +48,10 @@ def _read_query_as_rows(query: str) -> list:
     Uses a derived table (subquery) so Spark can run arbitrary SQL
     via the dbtable option. This is a common JDBC pattern.
     """
-    options = _get_jdbc_options()
+    options = _get_jdbc_options(dbutils)
 
     df = (
-        spark.read                                                    
+        spark.read
         .format("jdbc")
         .option("url", options["url"])
         .option("dbtable", f"({query}) AS t")
@@ -65,15 +66,11 @@ def _read_query_as_rows(query: str) -> list:
     return [row.asDict() for row in df.collect()]
 
 
-def load_template_config(template_id: str) -> dict:
+def load_template_config(spark, dbutils, template_id: str) -> dict:
     """
     Fetch the full template definition from PostgreSQL and assemble
     it into the dict structure expected by the DDL builder.
-
-    This executes two queries:
-    1. Fetch the template row + domain info (joined)
-    2. Fetch all column configs for the template
-
+    
     Returns a dict matching the ddl_builder input contract. Raises
     ValueError if the template is not found.
     """
@@ -90,8 +87,8 @@ def load_template_config(template_id: str) -> dict:
         FROM templates t
         JOIN domains d ON t.domain_id = d.id
         WHERE t.id = '{template_id}'
-    """.strip()
-    template_rows = _read_query_as_rows(template_query)
+    """
+    template_rows = _read_query_as_rows(spark, dbutils, template_query)
     if not template_rows:
         raise ValueError(f"Template not found: {template_id}")
     template = template_rows[0]
@@ -112,7 +109,7 @@ def load_template_config(template_id: str) -> dict:
         WHERE template_id = '{template_id}'
         ORDER BY column_order
     """
-    columns = _read_query_as_rows(columns_query)
+    columns = _read_query_as_rows(spark, dbutils, columns_query)
 
     # Assemble the dict in the shape the DDL builder expects
     return {
