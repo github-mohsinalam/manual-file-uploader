@@ -30,7 +30,7 @@ resources:
     # approved the template.
     # ------------------------------------------------
     ddl_job:
-      name: "[${bundle.target}] Manual File Uploader - DDL Job"
+      name: "Manual File Uploader - DDL Job"
       description:
         Creates a Unity Catalog Delta table for an approved
         template. Triggered once per template approval by the
