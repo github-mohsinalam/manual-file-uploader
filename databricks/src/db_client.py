@@ -90,7 +90,7 @@ def load_template_config(template_id: str) -> dict:
         FROM templates t
         JOIN domains d ON t.domain_id = d.id
         WHERE t.id = '{template_id}'
-    """
+    """.strip()
     template_rows = _read_query_as_rows(template_query)
     if not template_rows:
         raise ValueError(f"Template not found: {template_id}")

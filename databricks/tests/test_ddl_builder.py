@@ -1,10 +1,6 @@
 """
 Unit tests for ddl_builder.
 
-All functions in ddl_builder are pure Python with no Spark or
-database dependencies, so they are fully testable locally with
-pytest.
-
 Run from the project root:
     cd databricks
     python -m pytest tests/ -v

@@ -95,12 +95,12 @@ def build_create_table_ddl(config: dict) -> str:
         comment_clause = f"COMMENT '{escaped}'"
 
     ddl = f"""
-CREATE TABLE IF NOT EXISTS {fqn} (
-    {columns_block}
-)
-USING DELTA
-{comment_clause}
-""".strip()
+            CREATE TABLE IF NOT EXISTS {fqn} (
+                {columns_block}
+            )
+            USING DELTA
+            {comment_clause}
+        """.strip()
 
     return ddl
 
