@@ -230,6 +230,15 @@ logic functions are pure Python that can be tested locally.
   Approved and Active in PostgreSQL
 - On job failure FastAPI updates template status back to
   Pending Approval and notifies creator
+- Grant handling is forgiving - if a reader group does
+  not exist in Databricks, the specific grant is logged
+  as a warning and skipped. Other grant failures remain
+  fatal. Table creation and PII masking are not affected
+  by missing groups.
+- DDL job outcome (grants applied, grants skipped, PII
+  applied, table FQN) is communicated to the template
+  creator via the Template Activation email (see
+  Section 6.4). Implementation deferred to Phase 6.
 
 ---
 
@@ -414,7 +423,103 @@ project script format convention.
 
 ---
 
-## 6. Authentication and Security
+## 6. Email Notifications
+
+All email notifications are sent by FastAPI using Azure
+Communication Services (or SMTP fallback - specific provider
+decision deferred to Phase 6). Emails use HTML templates
+stored in backend/app/email_templates/. The SMTP/ACS
+configuration is read from environment variables.
+
+### 6.1 Approval Request Email
+
+Sent to each required reviewer when a template is submitted
+for approval.
+
+Recipients: All required reviewers listed on the template
+
+Trigger: Template submitted (status changes to 'Pending Approval')
+
+Contents:
+- Template creator name and email
+- Template name, domain, and description
+- Link to view the full template definition in the app
+- Approve button (tokenized link, single-use, 30-day expiry)
+- Reject button (tokenized link, single-use, 30-day expiry)
+- Context on why they are a required reviewer
+
+### 6.2 Approval Reminder Email
+
+Sent on a daily schedule to reviewers who have not yet
+acted on pending approval requests.
+
+Recipients: Required reviewers with pending decisions
+
+Trigger: FastAPI APScheduler runs daily at 9 AM. Queries
+PostgreSQL for templates in 'Pending Approval' status older
+than 3 days with reviewers who have not yet decided.
+
+Contents:
+- Days pending since approval request
+- Template details
+- Approve and Reject tokenized buttons (same tokens as
+  original approval request email)
+
+### 6.3 Approval Decision Email
+
+Sent to the template creator when any reviewer approves
+or rejects.
+
+Recipients: Template creator
+
+Trigger: Reviewer clicks approve or reject link
+
+Contents:
+- Reviewer name and decision
+- Reviewer comment (if any)
+- Current overall status of the template (how many
+  approvals still needed, or rejected)
+- Link to view the template in the app
+
+### 6.4 Template Activation Email
+
+Sent to the template creator when the DDL job completes
+successfully and the Unity Catalog table is ready to use.
+
+Recipients: Template creator
+
+Trigger: FastAPI receives successful completion signal
+from the Databricks DDL job and updates template status
+to 'Active'
+
+Contents:
+- Template name and version
+- Fully qualified Unity Catalog table name
+- Status of grants (applied / skipped with reason)
+- Status of PII masking (applied / not applicable)
+- Link to view the table in Databricks Catalog
+- Link to view the template in the app
+- Information on how to upload the first file
+
+### 6.5 Upload Result Email
+
+Sent to the uploader after a file upload completes or fails.
+
+Recipients: User who uploaded the file
+
+Trigger: FastAPI receives completion signal from the write
+pipeline
+
+Contents:
+- Template name and table
+- Upload outcome (success / partial / failed)
+- Row counts (total, valid, bad)
+- Link to view upload history in the app
+- If failed, the reason and next steps
+
+---
+
+## 7. Authentication and Security
 
 ### Decision
 Azure AD authentication using OAuth 2.0 authorization code flow.
@@ -433,7 +538,7 @@ and backend.
 
 ---
 
-## 7. Technology Versions (locked)
+## 8. Technology Versions (locked)
 
 | Technology         | Version   |
 |--------------------|-----------|
@@ -451,7 +556,7 @@ and backend.
 
 ---
 
-## 8. API Design Conventions (locked)
+## 9. API Design Conventions (locked)
 
 - REST API — resource based URLs, standard HTTP methods
 - All endpoints return JSON
@@ -468,7 +573,7 @@ and backend.
 
 ---
 
-## 9. Key Constraints and Limitations (locked)
+## 10. Key Constraints and Limitations (locked)
 
 - UNIQUE constraints are informational only in Delta Lake.
   Uniqueness is enforced exclusively in the FastAPI Polars
