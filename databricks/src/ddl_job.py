@@ -5,8 +5,8 @@ This job creates a Unity Catalog Delta table for an approved
 template. It is triggered by FastAPI once all required
 reviewers have approved a template.
 
-Parameters:
-    template_id (string) - UUID of the approved template in
+Parameters (command line arguments):
+    --template_id (string) - UUID of the approved template in
         PostgreSQL. The job fetches the full template
         configuration from PostgreSQL using this ID.
 
@@ -123,11 +123,19 @@ def run_ddl_job(template_id: str, spark_session) -> None:
 
 
 if __name__ == "__main__":
-    # dbutils and spark are automatically available in Databricks runtime
-    template_id = dbutils.widgets.get("template_id")  
+    import argparse
+
+    parser = argparse.ArgumentParser(description="DDL job for Manual File Uploader")
+    parser.add_argument(
+        "--template_id",
+        required=True,
+        help="UUID of the approved template to provision"
+    )
+    args = parser.parse_args()
 
     try:
-        run_ddl_job(template_id, spark)  
+        # spark is automatically available in Databricks runtime
+        run_ddl_job(args.template_id, spark)  # noqa: F821
     except Exception as error:
         print(f"\nDDL job FAILED: {error}")
         traceback.print_exc()

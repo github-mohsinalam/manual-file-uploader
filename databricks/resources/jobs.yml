@@ -1,10 +1,74 @@
 # ================================================
-# Jobs definitions
-# ================================================
-# Actual job definitions will be added in Task 5.7
-# and later tasks for the write pipeline and
-# reminder job.
+# Job definitions for the Manual File Uploader
+# bundle.
+#
+# Each job here is deployed as a Databricks job in
+# the workspace. The bundle ties the job to the
+# Python source files under databricks/src/.
 # ================================================
 
 resources:
-  jobs: {}
+  jobs:
+
+    # ------------------------------------------------
+    # DDL Job
+    # ------------------------------------------------
+    # Fires once when a template is fully approved in
+    # the Manual File Uploader application.
+    #
+    # Inputs:
+    #   template_id - UUID of the approved template
+    #
+    # Responsibilities:
+    #   1. Fetch full template config from PostgreSQL
+    #   2. Create the Unity Catalog Delta table
+    #   3. Apply PII masking to any PII columns
+    #   4. Grant SELECT access to the reader group
+    #
+    # Trigger: Called via Databricks Jobs REST API
+    # by FastAPI when all required reviewers have
+    # approved the template.
+    # ------------------------------------------------
+    ddl_job:
+      name: "[${bundle.target}] Manual File Uploader - DDL Job"
+      description:
+        Creates a Unity Catalog Delta table for an approved
+        template. Triggered once per template approval by the
+        Manual File Uploader FastAPI backend.
+
+      tasks:
+        - task_key: create_uc_table
+          description: "Create the Unity Catalog table for the approved template"
+          spark_python_task:
+            python_file: ../src/ddl_job.py
+
+            # Parameters passed to the script
+            # Read via dbutils.widgets.get("template_id")
+            parameters:
+              - "--template_id"
+              - "{{job.parameters.template_id}}"
+
+          # Serverless compute - no cluster config needed
+          environment_key: serverless_env
+
+      # Job level parameters
+      # template_id is the only parameter - passed by FastAPI
+      # when the job is triggered via the REST API
+      parameters:
+        - name: template_id
+          default: ""
+
+      # Serverless environment specification
+      # Databricks handles the compute for us
+      environments:
+        - environment_key: serverless_env
+          spec:
+            client: "5"
+
+      # Timeout - kill the job if it runs longer than 15 minutes
+      # DDL work should take seconds - if we hit 15 minutes
+      # something is wrong
+      timeout_seconds: 900
+
+      # Do not retry on failure - FastAPI controls retry logic
+      max_concurrent_runs: 1
