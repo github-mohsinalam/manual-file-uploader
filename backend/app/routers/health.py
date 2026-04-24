@@ -16,6 +16,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from app.auth.dependencies import get_current_user
+from app.auth.models import User
 
 from app.database.database import get_db
 
@@ -115,3 +117,10 @@ def readiness_check(db: Session = Depends(get_db)):
         "status": "ready",
         "checks": checks
     }
+
+@router.get("/me")
+def whoami(current_user: User = Depends(get_current_user)):
+    """
+    Return the currently authenticated user.
+    """
+    return current_user
