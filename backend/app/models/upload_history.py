@@ -4,11 +4,11 @@ import uuid
 from sqlalchemy import Column, String, Text, Integer, BigInteger, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from app.database.database import Base
-from app.models.base import TimestampMixin
 
 
-class UploadHistory(Base, TimestampMixin):
+class UploadHistory(Base):
     """
     Permanent audit record of every file upload attempt.
     Created at start of upload and updated as each step completes.
@@ -25,7 +25,11 @@ class UploadHistory(Base, TimestampMixin):
     )
 
     uploaded_by = Column(String(255), nullable=False)
-    uploaded_at = Column(DateTime(timezone=True), nullable=False)
+    uploaded_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
     original_filename = Column(String(500), nullable=False)
     stored_filename = Column(String(500), nullable=True)
     storage_path = Column(String(500), nullable=True)
@@ -41,6 +45,13 @@ class UploadHistory(Base, TimestampMixin):
     dlt_rows_dropped = Column(Integer, nullable=True)
     dlt_event_log_path = Column(String(500), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 
     template = relationship("Template", back_populates="uploads")
 

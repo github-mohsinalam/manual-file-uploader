@@ -15,6 +15,5 @@ class DomainResponse(ORMBase):
 
     id: UUID
     name: str
-    display_name: str
     description: str | None
     uc_schema_name: str
