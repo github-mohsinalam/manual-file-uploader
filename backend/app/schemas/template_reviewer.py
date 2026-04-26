@@ -11,6 +11,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.common import ORMBase
 
+from typing import Literal
 
 class TemplateReviewerCreate(BaseModel):
     """
@@ -29,10 +30,10 @@ class TemplateReviewerCreate(BaseModel):
         max_length=100,
         description="Reviewer's display name."
     )
-    reviewer_type: str = Field(
-        'required',
-        description="Required reviewers must all approve. Optional reviewers can see the request but approval is not blocking."
-    )
+    reviewer_type: Literal["required", "optional"] = Field(
+    "required",
+    description="Required reviewers must all approve. Optional reviewers can see the request but approval is not blocking."
+)
 
 
 class TemplateReviewerResponse(ORMBase):
