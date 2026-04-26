@@ -180,9 +180,10 @@ def root():
 # Example: health router has prefix "/health" so the live
 # endpoint becomes /api/v1/health/live
 
-from app.routers import health, domains, templates, template_columns
+from app.routers import health, domains, templates, template_columns, template_reviewers
 
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(domains.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")
 app.include_router(template_columns.router, prefix="/api/v1")
+app.include_router(template_reviewers.router, prefix="/api/v1")

@@ -148,6 +148,25 @@ equals the total required reviewer count the DDL job is triggered.
 - If any rejection exists: update template status to Rejected,
   send rejection notification email to creator
 
+### 3.4 Creator Role in Approval Workflow
+
+#### Decision
+The template creator is the requester, not a reviewer. The
+creator never approves their own template. The reviewer list
+must contain at least one OTHER required reviewer for the
+template to be submittable.
+
+#### Implementation
+- POST /templates/{id}/reviewers accepts a list of reviewers
+- Reviewer email cannot match the creator's email - rejected
+  with 400 if attempted
+- POST /templates/{id}/submit verifies the template has at
+  least one required reviewer before transitioning to
+  Pending Approval status
+- The creator receives notifications about the workflow
+  (approval decision emails, activation email) but does
+  not receive an approval request email for their own template
+
 ---
 
 ## 4. Unity Catalog Table Provisioning

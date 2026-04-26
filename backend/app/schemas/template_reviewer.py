@@ -19,18 +19,18 @@ class TemplateReviewerCreate(BaseModel):
     POST /templates/{id}/reviewers accepts a list of these.
     """
 
-    email: EmailStr = Field(
+    reviewer_email: EmailStr = Field(
         ...,
         description="Reviewer's email address. They will receive approval request emails here."
     )
-    name: str = Field(
+    reviewer_name: str = Field(
         ...,
         min_length=1,
         max_length=100,
         description="Reviewer's display name."
     )
-    is_required: bool = Field(
-        True,
+    reviewer_type: str = Field(
+        'required',
         description="Required reviewers must all approve. Optional reviewers can see the request but approval is not blocking."
     )
 
@@ -40,6 +40,6 @@ class TemplateReviewerResponse(ORMBase):
 
     id: UUID
     template_id: UUID
-    email: str
-    name: str
-    is_required: bool
+    reviewer_email: str
+    reviewer_name: str
+    reviewer_type: str
