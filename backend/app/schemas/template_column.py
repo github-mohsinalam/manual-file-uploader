@@ -61,11 +61,6 @@ class TemplateColumnCreate(BaseModel):
         False,
         description="Enforce uniqueness. Uniqueness is enforced at the Polars validation layer, not Delta."
     )
-    column_order: int = Field(
-        ...,
-        ge=0,
-        description="Zero-based position in the target table schema."
-    )
 
 
 class TemplateColumnResponse(ORMBase):
