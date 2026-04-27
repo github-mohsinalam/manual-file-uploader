@@ -149,7 +149,7 @@ def send_test_email(
         context={
             "subject": "Test email from Manual File Uploader",
             "recipient_name": "Test Recipient",
-            "sent_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "sent_at": datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         },
     )
 
