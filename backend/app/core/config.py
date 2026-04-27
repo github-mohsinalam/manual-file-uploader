@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     app_name: str = "Manual File Uploader"
     app_env: str = "development"
     app_port: int = 8000
+    app_base_url: str = "http://localhost:8000"
 
     # Database
     database_url: str
@@ -82,6 +83,7 @@ class Settings(BaseSettings):
     # Azure Communication Services
     azure_communication_connection_string: str = ""
     azure_communication_sender_email: str = ""
+    email_from_name: str = "MFU Notifications"
 
     # Unity Catalog
     uc_catalog_name: str = "manualuploads"

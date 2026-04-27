@@ -124,3 +124,44 @@ def whoami(current_user: User = Depends(get_current_user)):
     Return the currently authenticated user.
     """
     return current_user
+
+@router.post("/test-email")
+def send_test_email(
+    to_email: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Send a test email to verify the email infrastructure works.
+
+    TEMPORARY ENDPOINT - to be removed after Phase 6 is complete.
+
+    Send a POST to this endpoint with ?to_email=your@email.com
+    and check your inbox.
+    """
+    from datetime import datetime
+    from app.services.email.service_factory import get_email_service
+    from app.services.email.templates_loader import render_template
+
+    email_service = get_email_service()
+
+    html_body = render_template(
+        "test_email.html",
+        context={
+            "subject": "Test email from Manual File Uploader",
+            "recipient_name": "Test Recipient",
+            "sent_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+        },
+    )
+
+    message_id = email_service.send(
+        to_email=to_email,
+        to_name="Test Recipient",
+        subject="Test email from Manual File Uploader",
+        html_body=html_body,
+    )
+
+    return {
+        "status": "sent",
+        "to": to_email,
+        "message_id": message_id,
+    }
