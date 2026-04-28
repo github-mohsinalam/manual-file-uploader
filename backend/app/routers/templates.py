@@ -15,13 +15,16 @@ in subsequent tasks. This module focuses on the base CRUD.
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.database.database import get_db
 from app.models.domain import Domain
+from app.models.template_reviewer import TemplateReviewer
+from app.services.approval.submission import submit_template_for_approval
+from app.services.approval.emails import send_approval_request_emails
 from app.models.template import Template
 from app.schemas.template import (
     TemplateCreate,
@@ -286,3 +289,56 @@ def delete_template(
     db.delete(template)
     db.commit()
     # 204 returns no body
+
+@router.post(
+    "/{template_id}/submit",
+    response_model=TemplateResponse,
+)
+def submit_template(
+    template_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Submit a Draft template for approval.
+
+    Validates the template has columns and at least one required
+    reviewer, then:
+        - Creates approval rows with secure single-use tokens
+        - Transitions template status to Pending Approval
+        - Sends approval request emails to all reviewers (async)
+
+    Returns the updated template. Emails are dispatched in the
+    background after the response is sent.
+    """
+    # Validate and submit - returns updated template + approval rows
+    template, approvals = submit_template_for_approval(db, template_id)
+
+    # Fetch the domain for the email content
+    domain = db.query(Domain).filter(Domain.id == template.domain_id).first()
+
+    # Fetch reviewers to know which are required vs optional
+    reviewers = (
+        db.query(TemplateReviewer)
+        .filter(TemplateReviewer.template_id == template.id)
+        .all()
+    )
+    reviewer_types_by_email = {
+        r.reviewer_email: r.reviewer_type for r in reviewers
+    }
+
+    # Schedule emails to send in the background
+    # The user's HTTP response goes out immediately - emails
+    # are dispatched after that.
+    background_tasks.add_task(
+        send_approval_request_emails,
+        template=template,
+        approvals=approvals,
+        creator_name=current_user.name,
+        creator_email=current_user.email,
+        domain=domain,
+        reviewer_types_by_email=reviewer_types_by_email,
+    )
+
+    return template

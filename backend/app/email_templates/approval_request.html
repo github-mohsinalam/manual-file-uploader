@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Approval Request: {{ template_display_name }}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333; max-width: 600px; margin: 0 auto;">
+
+  <h2 style="color: #2563eb;">Template Approval Request</h2>
+
+  <p>Hello {{ reviewer_name }},</p>
+
+  <p>
+    <strong>{{ creator_name }}</strong> ({{ creator_email }}) has submitted
+    a template for your review.
+  </p>
+
+  <div style="background: #f3f4f6; padding: 16px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0 0 8px 0;"><strong>Template:</strong> {{ template_display_name }}</p>
+    <p style="margin: 0 0 8px 0;"><strong>Domain:</strong> {{ domain_name }}</p>
+    {% if template_description %}
+    <p style="margin: 0 0 8px 0;"><strong>Description:</strong> {{ template_description }}</p>
+    {% endif %}
+    <p style="margin: 0;"><strong>Target table:</strong> <code>{{ fully_qualified_name }}</code></p>
+  </div>
+
+  <p>
+    You are listed as a <strong>{{ reviewer_type }}</strong> reviewer
+    {% if reviewer_type == "required" %}
+    - your approval is needed for this template to be activated.
+    {% else %}
+    - your approval is welcomed but not blocking.
+    {% endif %}
+  </p>
+
+  <p>Please review and decide:</p>
+
+  <p style="margin: 24px 0;">
+    <a href="{{ approve_url }}"
+       style="background: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-right: 12px;">
+      Approve
+    </a>
+    <a href="{{ reject_url }}"
+       style="background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
+      Reject
+    </a>
+  </p>
+
+  <p style="font-size: 13px; color: #666;">
+    These links are unique to you and can be used only once.
+    They expire on {{ expires_on }}.
+  </p>
+
+  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+
+  <p style="color: #666; font-size: 12px;">
+    This is an automated notification from MFU Notifications.<br>
+    If you believe you received this email in error, please ignore it.
+  </p>
+
+</body>
+</html>
