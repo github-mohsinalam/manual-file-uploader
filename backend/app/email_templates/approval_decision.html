@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Decision recorded: {{ template_display_name }}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333; max-width: 600px; margin: 0 auto;">
+
+  <h2 style="color: {{ headline_color }};">{{ headline }}</h2>
+
+  <p>Hello {{ creator_name }},</p>
+
+  <p>
+    <strong>{{ reviewer_name }}</strong> ({{ reviewer_email }})
+    has <strong>{{ decision_past_tense }}</strong> your template.
+  </p>
+
+  <div style="background: #f3f4f6; padding: 16px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0 0 8px 0;"><strong>Template:</strong> {{ template_display_name }}</p>
+    <p style="margin: 0 0 8px 0;"><strong>Domain:</strong> {{ domain_name }}</p>
+    <p style="margin: 0;"><strong>Target table:</strong> <code>{{ fully_qualified_name }}</code></p>
+  </div>
+
+  {% if decision == "reject" %}
+    {% if comment %}
+      <p><strong>Reviewer's comment:</strong></p>
+      <blockquote style="border-left: 3px solid #dc2626; padding: 8px 16px; margin: 12px 0; color: #555;">
+        {{ comment }}
+      </blockquote>
+    {% else %}
+      <p style="color: #666;">
+        No comment was provided. You may want to reach out to
+        {{ reviewer_name }} directly for the reason.
+      </p>
+    {% endif %}
+  {% endif %}
+
+  <p><strong>Status:</strong> {{ status_message }}</p>
+
+  {% if next_steps %}
+  <p>{{ next_steps }}</p>
+  {% endif %}
+
+  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+
+  <p style="color: #666; font-size: 12px;">
+    This is an automated notification from MFU Notifications.
+  </p>
+
+</body>
+</html>

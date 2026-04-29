@@ -67,7 +67,7 @@ def get_valid_approval_by_token(
             status_code=status.HTTP_410_GONE,
             detail=(
                 "This approval link has already been used. "
-                f"You {approval.action}d this template "
+                f"You {approval.action} this template "
                 f"on {approval.actioned_at:%B %d, %Y}."
             ),
         )

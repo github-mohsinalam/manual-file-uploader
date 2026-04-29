@@ -19,9 +19,8 @@ class TemplateApprovalResponse(ORMBase):
     id: UUID
     template_id: UUID
     reviewer_email: str
-    reviewer_name: str
-    is_required: bool
-    status: str
+    reviewer_name: str | None
+    action: str | None
     comment: str | None
-    approved_at: datetime | None
+    actioned_at: datetime | None
     created_at: datetime

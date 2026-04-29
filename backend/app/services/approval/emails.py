@@ -97,3 +97,74 @@ def send_approval_request_emails(
                 f"{approval.reviewer_email}: {e}",
                 exc_info=True,
             )
+
+def send_approval_decision_email(
+    template: Template,
+    domain: Domain,
+    reviewer_email: str,
+    reviewer_name: str,
+    decision: str,
+    comment: str | None,
+    creator_email: str,
+    creator_name: str,
+    status_message: str,
+    next_steps: str | None = None,
+) -> None:
+    """
+    Send the approval decision email to the template creator.
+
+    Called as a BackgroundTask after a reviewer approves or rejects.
+    Best-effort delivery - failures are logged but do not raise.
+
+    Args:
+        template: The template that was reviewed
+        domain: The template's domain (for display)
+        reviewer_email, reviewer_name: Who made the decision
+        decision: "approve" or "reject"
+        comment: The reviewer's optional comment
+        creator_email: Recipient (the creator)
+        creator_name: Display name for the recipient
+        status_message: Plain-text summary of overall template status
+            (e.g. "1 of 2 required reviewers have approved")
+        next_steps: Optional additional message about what happens next
+    """
+    email_service = get_email_service()
+
+    if decision == "approve":
+        headline = "Your template has been approved"
+        headline_color = "#16a34a"
+        decision_past_tense = "approved"
+    else:
+        headline = "Your template was rejected"
+        headline_color = "#dc2626"
+        decision_past_tense = "rejected"
+
+    context = {
+        "creator_name": creator_name,
+        "reviewer_name": reviewer_name,
+        "reviewer_email": reviewer_email,
+        "template_display_name": template.display_name,
+        "domain_name": domain.name,
+        "fully_qualified_name": template.fully_qualified_name,
+        "decision": decision,
+        "decision_past_tense": decision_past_tense,
+        "comment": comment,
+        "status_message": status_message,
+        "next_steps": next_steps,
+        "headline": headline,
+        "headline_color": headline_color,
+    }
+
+    try:
+        html_body = render_template("approval_decision.html", context)
+        email_service.send(
+            to_email=creator_email,
+            to_name=creator_name,
+            subject=f"Template {decision_past_tense}: {template.display_name}",
+            html_body=html_body,
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to send approval decision email to {creator_email}: {e}",
+            exc_info=True,
+        )
