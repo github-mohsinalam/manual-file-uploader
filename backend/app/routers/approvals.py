@@ -29,6 +29,14 @@ from app.schemas.approval_action import (
 from app.services.approval.action import record_approval_decision
 from app.services.approval.emails import send_approval_decision_email
 
+from app.services.approval.completion import (
+    is_template_fully_approved,
+    transition_to_pending_ddl,
+)
+from app.services.approval.ddl_trigger import (
+    trigger_ddl_for_approved_template,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +128,41 @@ def _dispatch_decision_email(
         status_message=status_message,
     )
 
+def _check_completion_and_trigger_ddl(
+    db: Session,
+    background_tasks: BackgroundTasks,
+    template: Template,
+    decision: str,
+) -> str:
+    """
+    After an approval is recorded, check if all required reviewers
+    have approved. If yes, transition the template and trigger the
+    DDL job in the background.
 
+    Returns an updated status_message that reflects the new state
+    if a transition happened, otherwise the original message.
+    """
+    # Only need to check on approve - reject already moves to Draft
+    if decision != "approve":
+        return None
+
+    if not is_template_fully_approved(db, template.id):
+        return None
+
+    # All required reviewers have approved
+    transition_to_pending_ddl(db, template)
+
+    # Schedule the DDL job trigger as a background task
+    background_tasks.add_task(
+        trigger_ddl_for_approved_template,
+        template_id=template.id,
+    )
+
+    return (
+        "All required reviewers have approved. The Unity Catalog "
+        "table is being provisioned. You will receive an email "
+        "when it is ready."
+    )
 # ================================================
 # GET endpoints (clicked from email)
 # ================================================
@@ -139,7 +181,7 @@ def approve_via_email_link(
     Record an Approve decision from an email link.
 
     Returns a polished HTML page so the reviewer's browser
-    shows a clean confirmation rather than raw JSON.
+    shows a clean confirmation message.
 
     Comment cannot be collected via email link - the reviewer
     can use the React frontend for richer interaction.
@@ -147,6 +189,17 @@ def approve_via_email_link(
     approval, template, status_message = record_approval_decision(
         db=db, token=token, decision="approve", comment=None
     )
+
+    # Check if this approval completes the workflow - if yes,
+    # trigger DDL and update the message accordingly
+    completion_message = _check_completion_and_trigger_ddl(
+        db=db,
+        background_tasks=background_tasks,
+        template=template,
+        decision="approve",
+    )
+    if completion_message:
+        status_message = completion_message
 
     _dispatch_decision_email(
         db=db,
@@ -234,6 +287,16 @@ def submit_decision(
         decision=payload.decision,
         comment=payload.comment,
     )
+
+    completion_message = _check_completion_and_trigger_ddl(
+        db=db,
+        background_tasks=background_tasks,
+        template=template,
+        decision=payload.decision,
+    )
+    
+    if completion_message:
+        status_message = completion_message
 
     _dispatch_decision_email(
         db=db,

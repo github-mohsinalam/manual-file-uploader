@@ -168,3 +168,46 @@ def send_approval_decision_email(
             f"Failed to send approval decision email to {creator_email}: {e}",
             exc_info=True,
         )
+
+def send_activation_failed_email(
+    template: Template,
+    domain: Domain,
+    creator_email: str,
+    creator_name: str,
+    error_message: str,
+) -> None:
+    """
+    Notify the template creator that DDL provisioning failed.
+
+    Sent when triggering the Databricks DDL job fails after all
+    retries are exhausted (databricks-sdk + Databricks job-level
+    retries combined).
+
+    Best-effort - logs but does not raise.
+    """
+    email_service = get_email_service()
+
+    context = {
+        "creator_name": creator_name,
+        "template_display_name": template.display_name,
+        "domain_name": domain.name,
+        "fully_qualified_name": template.fully_qualified_name,
+        "error_message": error_message,
+        "template_id": str(template.id),
+    }
+
+    try:
+        html_body = render_template(
+            "template_activation_failed.html", context
+        )
+        email_service.send(
+            to_email=creator_email,
+            to_name=creator_name,
+            subject=f"Template provisioning failed: {template.display_name}",
+            html_body=html_body,
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to send activation-failed email to {creator_email}: {e}",
+            exc_info=True,
+        )
