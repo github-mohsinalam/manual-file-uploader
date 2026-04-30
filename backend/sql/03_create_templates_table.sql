@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS templates (
             'Pending DDL',
             'Approved',
             'Rejected',
+            'DDL Failed',
             'Deprecated'
         )),
 
