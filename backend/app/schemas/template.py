@@ -129,3 +129,5 @@ class TemplateResponse(ORMBase):
     created_by: str
     created_at: datetime
     updated_at: datetime
+    approved_at: datetime | None
+    databricks_ddl_run_id: str | None
