@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS template_columns (
         CHECK (data_type IN (
             'STRING',
             'INTEGER',
+            'BIGINT',
             'LONG',
             'DOUBLE',
             'DECIMAL',
