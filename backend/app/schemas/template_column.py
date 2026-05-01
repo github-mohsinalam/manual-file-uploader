@@ -20,7 +20,7 @@ from app.schemas.common import (
 
 # Allowed Unity Catalog data types for template columns.
 # Matches the subset of types we support in the DDL builder.
-ALLOWED_DATA_TYPES = r"^(STRING|INTEGER|BIGINT|DOUBLE|DECIMAL|BOOLEAN|DATE|TIMESTAMP)$"
+ALLOWED_DATA_TYPES = r"^(STRING|INTEGER|BIGINT|LONG|DOUBLE|DECIMAL|BOOLEAN|DATE|TIMESTAMP)$"
 
 
 class TemplateColumnCreate(BaseModel):
