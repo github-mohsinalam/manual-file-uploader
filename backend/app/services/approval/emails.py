@@ -211,3 +211,47 @@ def send_activation_failed_email(
             f"Failed to send activation-failed email to {creator_email}: {e}",
             exc_info=True,
         )
+
+def send_template_activation_email(
+    template: Template,
+    domain: Domain,
+    creator_email: str,
+    creator_name: str,
+    has_pii: bool,
+    reader_group: str | None,
+    grants_applied: bool,
+) -> None:
+    """
+    Notify the template creator that their template is now active
+    and the Unity Catalog table is ready to use.
+
+    Sent after the DDL job completes successfully.
+
+    Best-effort - logs but does not raise.
+    """
+    email_service = get_email_service()
+
+    context = {
+        "creator_name": creator_name,
+        "template_display_name": template.display_name,
+        "domain_name": domain.name,
+        "fully_qualified_name": template.fully_qualified_name,
+        "version": template.version,
+        "has_pii": has_pii,
+        "reader_group": reader_group,
+        "grants_applied": grants_applied,
+    }
+
+    try:
+        html_body = render_template("template_activation.html", context)
+        email_service.send(
+            to_email=creator_email,
+            to_name=creator_name,
+            subject=f"Template ready: {template.display_name}",
+            html_body=html_body,
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to send activation email to {creator_email}: {e}",
+            exc_info=True,
+        )

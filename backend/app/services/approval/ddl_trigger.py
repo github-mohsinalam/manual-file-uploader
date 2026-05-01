@@ -1,11 +1,16 @@
 """
-Background task helper to trigger the Databricks DDL job.
+Background task helper to trigger the Databricks DDL job
+and poll for completion.
 
-Called as a BackgroundTask after a template is approved by all
-required reviewers. The trigger call has built-in retry via
-databricks-sdk. If the call ultimately fails (after sdk retries
-are exhausted), we send an activation-failed email to the creator.
+Called as a single BackgroundTask. The task:
+    1. Triggers the DDL job via databricks-sdk
+    2. Stores the run_id on the template
+    3. Polls until the run terminates
+    4. Finalizes template state and sends activation/failure email
 
+If triggering the job itself fails (after databricks-sdk's internal
+retries are exhausted), an activation-failed email is sent to the
+creator and the template moves to DDL Failed status.
 """
 
 import logging
@@ -17,31 +22,21 @@ from app.database.database import engine
 from app.models.domain import Domain
 from app.models.template import Template
 from app.services.approval.emails import send_activation_failed_email
+from app.services.approval.poller import poll_ddl_run_and_finalize
 from app.services.databricks.client import trigger_ddl_job
 
 
 logger = logging.getLogger(__name__)
 
-
-# A separate session factory for background tasks
-# Background tasks run after the request response - the request's
-# original session may already be closed. We create a fresh session.
 _BackgroundSession = sessionmaker(bind=engine)
 
 
 def trigger_ddl_for_approved_template(template_id: UUID) -> None:
     """
-    Trigger the DDL job and persist the run_id.
+    Trigger the DDL job and poll for completion.
 
-    Called as a BackgroundTask. Has its own database session
-    independent of the request that scheduled it.
-
-    Failure path:
-        1. databricks-sdk retries transient errors automatically
-        2. If still failing after retries, exception propagates here
-        3. We log the error
-        4. We send an activation-failed email to the creator
-        5. Template stays in Pending DDL status - admin must intervene
+    This is the entry point for the BackgroundTask scheduled
+    by the approvals router after a template is fully approved.
     """
     db = _BackgroundSession()
     try:
@@ -64,8 +59,8 @@ def trigger_ddl_for_approved_template(template_id: UUID) -> None:
             db.commit()
 
             logger.info(
-                f"DDL job triggered for template = {template_id} - "
-                f"run_id = {run_id}"
+                f"DDL job triggered for template {template_id} - "
+                f"run_id={run_id}"
             )
 
         except Exception as e:
@@ -76,7 +71,10 @@ def trigger_ddl_for_approved_template(template_id: UUID) -> None:
                 exc_info=True,
             )
 
-            # Best-effort: send failure email to the creator
+            # Trigger failed even after sdk retries
+            template.status = "DDL Failed"
+            db.commit()
+
             domain = (
                 db.query(Domain)
                 .filter(Domain.id == template.domain_id)
@@ -92,5 +90,12 @@ def trigger_ddl_for_approved_template(template_id: UUID) -> None:
                     f"Error: {error_message}"
                 ),
             )
+            return  # Do not poll if we never triggered
+
     finally:
         db.close()
+
+    # Poll for completion - has its own session
+    # Done outside the finally above so the session is cleanly closed
+    # before the long-running poll begins
+    poll_ddl_run_and_finalize(template_id)

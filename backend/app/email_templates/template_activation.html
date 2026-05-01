@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Template ready: {{ template_display_name }}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333; max-width: 600px; margin: 0 auto;">
+
+  <h2 style="color: #16a34a;">Your template is ready to use</h2>
+
+  <p>Hello {{ creator_name }},</p>
+
+  <p>
+    Great news! Your template <strong>{{ template_display_name }}</strong>
+    has been approved and the Unity Catalog table has been created.
+  </p>
+
+  <div style="background: #f3f4f6; padding: 16px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0 0 8px 0;"><strong>Template:</strong> {{ template_display_name }} (v{{ version }})</p>
+    <p style="margin: 0 0 8px 0;"><strong>Domain:</strong> {{ domain_name }}</p>
+    <p style="margin: 0;"><strong>Target table:</strong> <code>{{ fully_qualified_name }}</code></p>
+  </div>
+
+  <h3 style="margin-top: 28px;">What you can do now</h3>
+
+  <p>You can now upload files matching this template's structure.
+  Files will be validated and written to the Delta table above.</p>
+
+  {% if has_pii %}
+  <p>
+    <strong>PII protection is in place.</strong> Columns marked
+    as PII have been masked. Only members of the
+    <code>mfu_pii_viewers</code> group can see unmasked values.
+  </p>
+  {% endif %}
+
+  {% if reader_group %}
+  <p>
+    <strong>Reader access:</strong>
+    {% if grants_applied %}
+    The group <code>{{ reader_group }}</code> has been granted SELECT
+    permissions on this table.
+    {% else %}
+    The reader group <code>{{ reader_group }}</code> does not yet exist
+    in Databricks. Ask your platform admin to create it - SELECT grants
+    will need to be re-applied once the group exists.
+    {% endif %}
+  </p>
+  {% endif %}
+
+  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+
+  <p style="color: #666; font-size: 12px;">
+    This is an automated notification from MFU Notifications.
+  </p>
+
+</body>
+</html>
