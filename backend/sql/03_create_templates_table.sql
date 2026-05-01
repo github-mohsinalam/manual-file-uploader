@@ -1,6 +1,7 @@
--- Templates define the structure and configuration of a manual mapping file
--- One template = one Unity Catalog table
--- Templates go through a lifecycle: Draft → Pending Approval → Approved → Deprecated
+-- Templates go through a lifecycle:
+--   Draft → Pending Approval → Pending DDL → Approved → Deprecated
+-- A template can also reach DDL Failed if the Databricks DDL job fails,
+-- or be returned to Draft if any required reviewer rejects.
 
 CREATE TABLE IF NOT EXISTS templates (
     id                    UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
