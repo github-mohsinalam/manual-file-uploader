@@ -26,3 +26,12 @@ For each one, it queries the Databricks run status and
 processes the same way the original polling task would have.
 
 **Effort estimate:** ~2 hours
+
+## UI/UX
+### Approval email content
+**Problem:**
+The current email sent to approver conatins basic details like table name and domain.It doesn't give any details about the template's column.
+
+**SProposed solution:**
+We can add a JSON view to capture column details .
+
