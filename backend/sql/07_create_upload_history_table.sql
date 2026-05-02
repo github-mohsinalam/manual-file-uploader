@@ -14,13 +14,9 @@ CREATE TABLE IF NOT EXISTS upload_history (
     total_rows            INTEGER,
     valid_rows            INTEGER,
     invalid_rows          INTEGER,
-    dropped_rows          INTEGER,
     status                VARCHAR(20)  NOT NULL DEFAULT 'in_progress',
     error_summary         TEXT,
     databricks_run_id     VARCHAR(100),
-    dlt_rows_written      INTEGER,
-    dlt_rows_dropped      INTEGER,
-    dlt_event_log_path    VARCHAR(500),
     completed_at          TIMESTAMPTZ,
 
     -- Foreign key
@@ -60,10 +56,6 @@ COMMENT ON TABLE upload_history IS
     'Permanent audit trail of every file upload attempt - success or failure';
 COMMENT ON COLUMN upload_history.stored_filename IS
     'Filename as stored in Blob Storage with timestamp appended';
-COMMENT ON COLUMN upload_history.dlt_rows_written IS
-    'Authoritative row count from DLT event log - rows actually written to UC';
-COMMENT ON COLUMN upload_history.dlt_rows_dropped IS
-    'Authoritative dropped row count from DLT event log';
 COMMENT ON COLUMN upload_history.dlt_event_log_path IS
     'Path to DLT event log Delta table for this pipeline run';
 COMMENT ON COLUMN upload_history.status IS

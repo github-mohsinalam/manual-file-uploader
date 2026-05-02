@@ -37,13 +37,9 @@ class UploadHistory(Base):
     total_rows = Column(Integer, nullable=True)
     valid_rows = Column(Integer, nullable=True)
     invalid_rows = Column(Integer, nullable=True)
-    dropped_rows = Column(Integer, nullable=True)
     status = Column(String(20), nullable=False, default="in_progress")
     error_summary = Column(Text, nullable=True)
     databricks_run_id = Column(String(100), nullable=True)
-    dlt_rows_written = Column(Integer, nullable=True)
-    dlt_rows_dropped = Column(Integer, nullable=True)
-    dlt_event_log_path = Column(String(500), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     updated_at = Column(

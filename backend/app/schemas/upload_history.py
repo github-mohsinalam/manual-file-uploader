@@ -33,7 +33,6 @@ class UploadSummary(ORMBase):
     total_rows: int | None
     valid_rows: int | None
     invalid_rows: int | None
-    dropped_rows: int | None
     error_summary: str | None
 
 
@@ -57,7 +56,6 @@ class UploadHistoryResponse(ORMBase):
     total_rows: int | None
     valid_rows: int | None
     invalid_rows: int | None
-    dropped_rows: int | None
 
     # Lifecycle status - one of the 8 status values
     status: str
@@ -65,8 +63,6 @@ class UploadHistoryResponse(ORMBase):
 
     # Databricks write phase
     databricks_run_id: str | None
-    dlt_rows_written: int | None
-    dlt_rows_dropped: int | None
 
     # Terminal timestamp
     completed_at: datetime | None
