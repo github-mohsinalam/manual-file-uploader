@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.services.storage_service import storage_service
+from backend.app.services.storage.storage_service import storage_service
 
 
 def test_upload():

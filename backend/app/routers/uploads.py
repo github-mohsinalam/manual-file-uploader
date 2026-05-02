@@ -25,10 +25,14 @@ from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.core.config import settings
 from app.database.database import get_db
+from app.models.domain import Domain
 from app.models.template import Template
 from app.models.upload_history import UploadHistory
 from app.schemas.upload_history import UploadSummary
-
+from app.services.storage.storage_service import (
+    build_upload_path,
+    storage_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -132,16 +136,7 @@ def upload_file(
 ):
     """
     Upload a file against an Approved template.
-
-    This is the scaffolding endpoint. Currently it:
-        - Validates the template exists and is Approved
-        - Validates the file extension matches template format
-        - Reads the file into memory and enforces size limit
-        - Creates an upload_history row with status 'in_progress'
-        - Returns the upload ID and basic info
-
-    Subsequent tasks add validation, blob storage, and the
-    Databricks write step.
+    
     """
     # Step 1: Validate template
     template = _get_template_or_404(db, template_id)
@@ -172,13 +167,51 @@ def upload_file(
         f"size={len(file_bytes)} bytes"
     )
 
-    # NOTE: Subsequent tasks will add steps here:
-    #   - Upload bytes to Blob Storage (Task 7.3)
+    # Step 5: Upload to ADLS Gen2 storage
+    domain = (
+        db.query(Domain).filter(Domain.id == template.domain_id).first()
+    )
+
+    storage_path = build_upload_path(
+        domain_uc_schema_name=domain.uc_schema_name,
+        template_id=str(template.id),
+        upload_id=str(upload.id),
+        original_filename=file.filename,
+    )
+
+    try:
+        storage_service.upload_file(
+            file_bytes=file_bytes,
+            destination_path=storage_path,
+        )
+    except Exception as e:
+        logger.error(
+            f"Upload {upload.id} - storage upload failed: {e}",
+            exc_info=True,
+        )
+        upload.status = "failed"
+        upload.error_summary = f"Storage upload failed: {e}"
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save uploaded file: {e}",
+        )
+
+    # Step 6: Update upload_history with storage info and status
+    upload.storage_path = storage_path
+    upload.stored_filename = file.filename
+    upload.status = "file_uploaded"
+    db.commit()
+    db.refresh(upload)
+
+    logger.info(
+        f"Upload {upload.id} - file saved to: {storage_path}"
+    )
+
+    # NOTE: Subsequent tasks add steps here:
     #   - Run Polars validation (Task 7.4)
     #   - Record validation errors if any (Task 7.5)
     #   - Apply bad row threshold logic (Task 7.6)
     #   - Trigger Databricks write job (Task 7.8)
-    #
-    # For now we just return the upload ID.
 
     return upload

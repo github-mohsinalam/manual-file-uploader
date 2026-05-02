@@ -37,6 +37,27 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+def build_upload_path(
+    domain_uc_schema_name: str,
+    template_id: str,
+    upload_id: str,
+    original_filename: str,
+) -> str:
+    """
+    Construct the canonical storage path for an uploaded file.
+
+    All file uploads land at:
+        uploads/{domain}/{template_id}/{upload_id}/{filename}
+
+    Keeping this helper here so the path scheme has one
+    authoritative source - any caller that wants to upload
+    a user file uses this function.
+    """
+    return (
+        f"uploads/{domain_uc_schema_name}/"
+        f"{template_id}/{upload_id}/{original_filename}"
+    )
+
 
 class StorageService:
     """
