@@ -27,6 +27,13 @@ from app.schemas.template_reviewer import (
     TemplateReviewerResponse,
 )
 
+from app.schemas.upload_history import (
+    UploadHistoryResponse,
+    UploadSummary,
+)
+from app.schemas.upload_validation_error import (
+    UploadValidationErrorResponse,
+)
 
 __all__ = [
     "ApprovalActionRequest",
@@ -40,4 +47,7 @@ __all__ = [
     "TemplateReviewerCreate",
     "TemplateReviewerResponse",
     "TemplateUpdate",
+    "UploadHistoryResponse",
+    "UploadSummary",
+    "UploadValidationErrorResponse",
 ]
