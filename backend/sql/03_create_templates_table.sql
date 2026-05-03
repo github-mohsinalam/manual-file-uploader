@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS templates (
     file_format           VARCHAR(10)  NOT NULL DEFAULT 'csv',
     delimiter             VARCHAR(5)   NOT NULL DEFAULT ',',
     encoding              VARCHAR(20)  NOT NULL DEFAULT 'UTF-8',
-    write_mode            VARCHAR(10)  NOT NULL DEFAULT 'append',
+    write_mode            VARCHAR(10)  NOT NULL DEFAULT 'overwrite',
     bad_row_threshold     DECIMAL(5,2) NOT NULL DEFAULT 0.00,
     bad_row_action        VARCHAR(10)  NOT NULL DEFAULT 'fail',
     storage_path          VARCHAR(500),
