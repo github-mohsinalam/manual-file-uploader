@@ -246,9 +246,9 @@ logic functions are pure Python that can be tested locally.
 - FastAPI polls job status via GET /api/2.1/jobs/runs/get
   using the run_id returned from job submission
 - On job success FastAPI updates template status to
-  Approved and Active in PostgreSQL
-- On job failure FastAPI updates template status back to
-  Pending Approval and notifies creator
+  Approved in PostgreSQL
+- On job failure FastAPI updates template status to
+  DDL Failed and notifies creator
 - Grant handling is forgiving - if a reader group does
   not exist in Databricks, the specific grant is logged
   as a warning and skipped. Other grant failures remain
@@ -265,13 +265,33 @@ logic functions are pure Python that can be tested locally.
 
 ### 5.1 Upload Flow
 
+#### Decision
+Two-layer architecture for separation of concerns:
+
+Layer 1 — FastAPI + Polars (synchronous, fast user feedback)
+  Validates the file completely. By the time the POST request
+  returns, the file is uploaded to storage and validation is
+  complete. The user sees immediate feedback.
+
+Layer 2 — Databricks Spark job (asynchronous, background)
+  Reads the validated clean data and writes to Unity Catalog
+  Delta table. Triggered as a background task after Layer 1.
+  User does not wait for this.
+
+This split provides:
+- Fast feedback to user on validation issues
+- No Databricks compute consumed for invalid files
+- Clean separation of validation and persistence
+
 #### Implementation
-- GET /templates/approved — returns only Active templates for
-  the upload dropdown, filtered by domain selection
-- Only Approved and Active templates appear in the dropdown —
-  prevents uploads to unapproved templates at the UI level
-- POST /uploads — multipart form endpoint receives domain,
-  template_id and file bytes
+- POST /uploads — multipart form endpoint receives template_id
+  and file bytes
+- Only Approved templates accepted (status check at endpoint level)
+- File extension must match template's file_format setting
+- File size limit enforced via settings.max_file_size_mb (100 MB)
+- Returns UploadSummary with upload_id once Layer 1 completes
+- Background task triggers Databricks Spark write job
+- Frontend polls GET /uploads/{id} to track progress
 
 ### 5.2 File Storage
 
@@ -288,31 +308,33 @@ ADLS Gen2 chosen over plain Blob Storage because:
 - Same cost as plain Blob Storage at our scale
 
 #### Implementation
-- Azure Blob Storage SDK (azure-storage-blob Python package)
-  works transparently with ADLS Gen2 — no special SDK needed
-- Storage path: {container}/{domain}/{template_name}/
-- Filename: {template_name}_{YYYYMMDD}_{HHMMSS}.{extension}
-- Timestamp generated server side in FastAPI at moment of receipt
-- Blob URL and storage path saved to upload_history record
+- azure-storage-file-datalake SDK (NOT azure-storage-blob)
+- Endpoint pattern: *.dfs.core.windows.net
+- storage_service.py module under backend/app/services/storage/
+  encapsulates all storage operations - rest of code never touches
+  Azure SDK directly
+- Storage path scheme:
+  uploads/{domain_uc_schema_name}/{template_id}/{upload_id}/{filename}
+- Original filename preserved (uniqueness comes from upload_id in path)
+- Upload path stored in upload_history.storage_path column
 
-### 5.3 File Validation
+### 5.3 File Validation (Layer 1 - Polars)
 
 #### Decision
-Two layer validation approach with clear separation of concerns:
+Polars used for ALL validation. No DLT/SDP expectations.
+Polars chosen over Pandas for performance and lazy evaluation
+familiar from Spark.
 
-Layer 1 — FastAPI validation using Polars (runs before Databricks)
-  Purpose: fast cheap gate that catches errors before consuming
-  Databricks compute. Gives user immediate row level feedback.
-  Polars chosen over Pandas for superior performance on larger
-  files and familiar lazy evaluation model (similar to Spark).
+Note: Databricks rebranded DLT to Spark Declarative Pipelines (SDP)
+in mid-2025. We evaluated SDP and decided not to use it for the
+write step because:
+- SDP would duplicate validation Polars already did
+- SDP has poor native Excel support (would require third-party
+  spark-excel library)
+- A simple Spark write job is cleaner and has lower overhead
+- We do not need SDP's incremental processing benefits
 
-Layer 2 — DLT expectations in Databricks write job (runs at
-  write time)
-  Purpose: authoritative enforcement at Delta table level.
-  DLT event log is the permanent record of what was actually
-  written vs dropped.
-
-#### What Layer 1 (Polars) validates
+#### What Polars validates
 - Schema validation:
   - Column names match template definition exactly
   - Column count matches template definition
@@ -323,132 +345,146 @@ Layer 2 — DLT expectations in Databricks write job (runs at
   - NOT NULL — rows where included column is empty or null
   - UNIQUE — duplicate detection using Polars group_by
     IMPORTANT: Delta Lake does NOT enforce UNIQUE constraints.
-    Polars is the only enforcement layer for uniqueness.
-    This must be clearly communicated to users.
+    Polars is the ONLY enforcement layer for uniqueness.
+- Excel files: read via Polars (uses fastexcel under the hood)
+- CSV files: read via Polars native CSV reader
 - Bad row threshold:
   - Calculate bad_rows / total_rows as percentage
-  - If exceeds threshold — return failure immediately,
-    do not trigger Databricks job, save DBU cost
-  - If within threshold and action is drop — filter bad rows,
-    write clean subset to validated file path in Blob Storage
-  - If within threshold and action is fail — return failure
-    with full error report
-
-#### What Layer 2 (DLT) validates and enforces
-- NOT NULL enforced via DLT expect_or_drop on included columns
-- CHECK constraints enforced via DLT expect_or_drop
-- UNIQUE is NOT enforced at DLT layer — Delta limitation,
-  enforced only in Polars layer above
-
-#### How DLT event log powers the UI stepper
-- After DLT pipeline completes FastAPI queries the DLT event
-  log Delta table via Databricks SQL REST API
-- Event log contains authoritative counts:
-  - Total rows processed
-  - Rows passed all expectations
-  - Rows dropped by each expectation with counts
-- These counts populate the final state of stepper Step 4
-- This ensures the UI reflects what Databricks actually did —
-  not what Polars predicted — making the event log the
-  single source of truth for what landed in the UC table
-
-#### Why this separation makes sense
-- Layer 1 is the fast cheap gate — runs in milliseconds,
-  catches obvious problems, sends bad files back before
-  any Databricks DBU cost is incurred
-- Layer 2 is the authoritative enforcement layer — what
-  actually happened is recorded permanently in the DLT
-  event log and is the true record of what landed in UC
-- A user or auditor can always query the DLT event log
-  to see exactly what was written and what was rejected
-  and why — independent of our application logs
+  - If exceeds threshold and bad_row_action='fail' — return
+    failure immediately, do not trigger Databricks job
+  - If within threshold and action='drop' — filter bad rows,
+    write clean subset to staging Parquet
+  - If within threshold and action='fail' — proceed only if
+    zero bad rows; otherwise return failure
 
 #### Validation error report
-- Row level errors collected during Polars validation (Layer 1)
+- Row level errors collected during Polars validation
 - Stored in upload_validation_errors table in PostgreSQL
-- Returned to UI as structured JSON for the error table
-  in the progress stepper
-- DLT event log summary appended to this report after
-  Layer 2 completes
+- Returned to UI via separate GET /uploads/{id}/errors endpoint
+  (paginated)
+- POST /uploads response contains summary counts only
 
 ### 5.4 Upload Progress UI
 
 #### Decision
-Progress driven by polling. FastAPI returns an upload_id immediately
-after receiving the upload. React polls GET /uploads/{upload_id}/status
-every 3 seconds. FastAPI returns current step and status.
+Progress driven by polling. POST /uploads returns upload_id with
+Layer 1 results synchronously. React polls GET /uploads/{upload_id}
+every 2-3 seconds while watching status field. When status becomes
+terminal (completed, failed, or partial), polling stops.
 
-#### Steps tracked
-1. file_uploaded — set immediately when Blob write completes
-2. schema_validated — set after Polars schema check completes
-3. constraints_checked — set after Polars constraint check
-   completes. Contains row level errors if any.
-4. writing_to_catalog — set when Databricks DLT job is submitted
-5. completed — set when Databricks run_id shows success and
-   DLT event log has been queried for final counts
-6. failed — set at any step that produces a terminal failure
+#### Steps tracked (8 status values)
+1. in_progress — upload received, work just starting
+2. file_uploaded — Blob upload complete
+3. schema_validated — Polars schema check passed
+4. constraints_checked — Polars constraint check complete
+5. writing_to_catalog — Databricks write job triggered
+6. completed — terminal, all rows written
+7. failed — terminal, upload aborted
+8. partial — terminal, some rows dropped (bad_row_action='drop')
+
+The first four statuses transition synchronously during the POST
+request. The last four are reached during/after the background
+Databricks write job.
 
 #### Implementation
 - Upload state stored in PostgreSQL upload_history table
 - Each step updates the status column and relevant counts
-- React polls every 3 seconds and updates stepper UI
-- On step 5 completion UI shows final authoritative counts
-  from DLT event log: rows written, rows dropped, expectations
-  triggered
+- React polls every 2-3 seconds and updates stepper UI
+- Validation errors fetched separately if user wants details
 
-### 5.5 Data Write Job (triggered on validation pass)
+### 5.5 Data Write Job (triggered after validation)
 
 #### Decision
-DLT (Delta Live Tables) declarative pipeline used for the write
-job. This is the appropriate place for DLT because:
-- It involves ongoing data ingestion not one-time DDL
-- DLT expectations provide a second enforcement layer for quality
-- DLT event log provides quality metrics over time
-- DLT handles append and overwrite modes natively
+Plain Databricks Spark job (NOT DLT/SDP). Single shared job
+parameterized per upload — created once via DABs deployment,
+triggered with parameters for each upload.
 
-DLT pipeline also deployed via Databricks Asset Bundles alongside
-the DDL job. All pipeline code written as .py files per the
-project script format convention.
+Rationale for plain Spark over SDP:
+- Polars already validated everything; SDP expectations would
+  duplicate work
+- Excel native support is in Polars, not Spark
+- Simpler code — single Python script with Spark write
+- Lower compute overhead - no SDP cluster startup
+- We sacrifice SDP event log but Polars provides the same counts
 
 #### Implementation
-- DLT pipeline script stored in databricks/src/write_pipeline.py
-- Pipeline defined in databricks/databricks.yml as a pipelines
-  resource
-- Pipeline reads from the validated file path in ADLS Gen2
-  (the clean subset written by FastAPI after Polars validation)
-- DLT expectations defined dynamically from template column
-  configuration fetched from PostgreSQL
-- Audit columns injected in the DLT pipeline as derived columns:
-  - uploaded_by - passed as pipeline parameter
+- Python script stored in databricks/src/upload_write_job.py
+- Job defined in databricks/resources/jobs.yml as a Spark job
+  on serverless compute
+- Deployed via databricks bundle deploy alongside the DDL job
+- Polars writes a clean Parquet file to staging path in ADLS:
+  staging/{domain}/{template_id}/{upload_id}/data.parquet
+- FastAPI triggers job via Databricks Jobs REST API with
+  parameters: template_id, upload_id, staging_path,
+  target_table_fqn, write_mode
+- Spark script reads the Parquet, adds audit columns, writes
+  to target Delta table
+- Audit columns added by the Spark script:
+  - uploaded_by - passed as job parameter
   - uploaded_at - current_timestamp()
-  - source_file - passed as pipeline parameter
-- Write mode (append/overwrite) configured via pipeline parameter
-- FastAPI triggers pipeline via Databricks REST API and polls
-  run_id for completion
-- After completion FastAPI queries DLT event log for final
-  quality metrics to populate stepper step 4
+  - upload_id - passed as job parameter
+- Write mode (append/overwrite) configured via job parameter
+- FastAPI polls run_id for completion, updates upload_history
+  status accordingly
 
 ### 5.6 Upload History
 
+#### Decision
+upload_history table tracks every file upload with these final columns:
+
+  Audit:
+  - id, template_id, uploaded_by, uploaded_at, updated_at
+  - original_filename, stored_filename, storage_path,
+    file_size_bytes
+
+  Validation results (Polars):
+  - total_rows — input row count
+  - valid_rows — passed all validation
+  - invalid_rows — failed validation
+
+  Lifecycle:
+  - status — one of 8 status values
+  - error_summary — failure reason (when status=failed)
+  - completed_at — terminal timestamp
+
+  Databricks tracking:
+  - databricks_run_id — for the write job
+
+We deliberately removed redundant columns during Phase 7 design:
+- dropped_rows — same value as invalid_rows when action=drop
+- rows_written — same as valid_rows on success, 0 on failure
+  (Delta writes are atomic, no partial writes possible)
+- rows_dropped — Spark realistically never drops rows after
+  Polars validation, always 0
+- dlt_event_log_path — no longer using DLT
+
+All this information is derivable from valid_rows + invalid_rows
++ status. Avoiding redundancy keeps the schema simpler and
+prevents drift.
+
 #### Implementation
 - upload_history row created at start of upload with status
-  in_progress
+  'in_progress'
 - Row updated at each validation step with counts and status
 - upload_validation_errors rows inserted for each bad row
   found during Polars validation
-- DLT event log counts appended to upload_history record
-  after write job completes
-- Final status set to success, failed or partial on completion
-
+- Final status set to completed, failed, or partial
+- error_summary populated only when status=failed
 ---
 
 ## 6. Email Notifications
 
 All email notifications are sent by FastAPI using Azure
-Communication Services (or SMTP fallback - specific provider
-decision deferred to Phase 6). Emails use HTML templates
-stored in backend/app/email_templates/. The SMTP/ACS
-configuration is read from environment variables.
+Communication Services (ACS) with an Azure-managed domain.
+SMTP fallback option not implemented - decision was locked
+on ACS during Phase 6 setup.
+
+Emails use Jinja2 HTML templates stored in
+backend/app/email_templates/. Sender display name is
+"MFU Notifications". ACS connection string is read from
+the AZURE_COMMUNICATION_CONNECTION_STRING environment
+variable. All emails sent as background tasks (FastAPI
+BackgroundTasks) so they do not block the HTTP response.
 
 ### 6.1 Approval Request Email
 
@@ -598,9 +634,23 @@ and backend.
   Uniqueness is enforced exclusively in the FastAPI Polars
   validation layer. This is a Delta Lake limitation and must
   be communicated to users.
-- DLT pipelines cannot be triggered mid-flight by another
-  pipeline. Each upload gets its own pipeline run.
 - Approval tokens expire after 30 days.
+- Approval tokens are single-use - once actioned cannot be
+  reused.
 - Maximum file size for upload: 100MB (configurable via
-  env var)
-- Supported file formats: CSV and Excel (.xlsx) only
+  MAX_FILE_SIZE_MB env var).
+- Supported file formats: CSV and Excel (.xlsx) only.
+- Excel reading is done in Polars (FastAPI), not Spark
+  (Databricks). Spark Excel support requires third-party
+  libraries; we keep Excel handling on the Polars side
+  exclusively.
+- BackgroundTasks are scoped to a single HTTP request.
+  Cannot be reused across chained background tasks. Each
+  background task that schedules further async work must
+  do so by calling the function directly, not via
+  BackgroundTasks.add_task() outside its request scope.
+- DDL polling task is in-memory. If FastAPI restarts
+  mid-poll, the task is lost. Crash recovery deferred -
+  see future_improvements.md.
+- Approval reminder emails not implemented - parked in
+  future_improvements.md.
