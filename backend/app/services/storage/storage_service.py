@@ -58,6 +58,31 @@ def build_upload_path(
         f"{template_id}/{upload_id}/{original_filename}"
     )
 
+def build_staging_path(
+    domain_uc_schema_name: str,
+    template_id: str,
+    upload_id: str,
+) -> str:
+    """
+    Construct the canonical staging path for the clean Parquet.
+
+    After Polars validation, the clean subset is written as a
+    single Parquet file at:
+        staging/{domain}/{template_id}/{upload_id}/data.parquet
+
+    The Databricks write job reads from this path. Filename is
+    fixed (data.parquet) - per-upload uniqueness comes from
+    upload_id in the path. Same scheme as build_upload_path,
+    just under a different root.
+
+    No corresponding column on upload_history - the path is
+    fully determined by the three IDs and is rebuilt on demand
+    when 7.8 needs it.
+    """
+    return (
+        f"staging/{domain_uc_schema_name}/"
+        f"{template_id}/{upload_id}/data.parquet"
+    )
 
 class StorageService:
     """

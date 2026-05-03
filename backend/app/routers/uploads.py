@@ -34,7 +34,10 @@ from app.services.storage.storage_service import (
     storage_service,
 )
 
-from app.services.validation import run_validation_phase
+from app.services.validation import (
+    apply_threshold_and_stage,
+    run_validation_phase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +215,7 @@ def upload_file(
 
     # Step 7: Run Polars validation and persist results.
     
-    run_validation_phase(
+    result = run_validation_phase(
         db=db,
         upload=upload,
         template=template,
@@ -221,8 +224,23 @@ def upload_file(
     )
     db.refresh(upload)
 
+    # Step 8: Apply threshold and stage clean Parquet.
+    # Skipped when validation already terminated the upload
+    # (schema failure leaves status='failed'). On the happy
+    # path this either flips status to 'failed' (threshold
+    # breach) or stages the Parquet for the Databricks job.
+    
+    if upload.status == "constraints_checked":
+        apply_threshold_and_stage(
+            db=db,
+            upload=upload,
+            template=template,
+            domain=domain,
+            result=result,
+        )
+        db.refresh(upload)
+
     # NOTE: Subsequent tasks add steps here:
-    #   - Apply bad row threshold logic (Task 7.6)
     #   - Trigger Databricks write job (Task 7.8)
 
     return upload
