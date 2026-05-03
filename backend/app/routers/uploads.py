@@ -34,6 +34,8 @@ from app.services.storage.storage_service import (
     storage_service,
 )
 
+from app.services.validation import run_validation_phase
+
 logger = logging.getLogger(__name__)
 
 
@@ -208,9 +210,18 @@ def upload_file(
         f"Upload {upload.id} - file saved to: {storage_path}"
     )
 
+    # Step 7: Run Polars validation and persist results.
+    
+    run_validation_phase(
+        db=db,
+        upload=upload,
+        template=template,
+        columns=template.columns,
+        file_bytes=file_bytes,
+    )
+    db.refresh(upload)
+
     # NOTE: Subsequent tasks add steps here:
-    #   - Run Polars validation (Task 7.4)
-    #   - Record validation errors if any (Task 7.5)
     #   - Apply bad row threshold logic (Task 7.6)
     #   - Trigger Databricks write job (Task 7.8)
 
