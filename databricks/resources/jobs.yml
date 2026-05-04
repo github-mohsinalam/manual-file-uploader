@@ -72,3 +72,75 @@ resources:
 
       # Do not retry on failure - FastAPI controls retry logic
       max_concurrent_runs: 1
+    # ------------------------------------------------
+    # Upload Write Job
+    # ------------------------------------------------
+    # Fires once per file upload after Polars validation
+    # passes the threshold check and the clean Parquet has
+    # been staged to ADLS.
+    #
+    # Inputs:
+    #   template_id  - UUID of the target template
+    #   upload_id    - UUID of the upload_history row
+    #   uploaded_by  - email of the uploading user
+    #
+    # Responsibilities:
+    #   1. Fetch FQN and write_mode from PostgreSQL
+    #   2. Read staging Parquet from ADLS
+    #   3. Stamp audit columns on every row
+    #   4. Write to the Unity Catalog Delta table
+    #
+    # Trigger: Called via Databricks Jobs REST API by
+    # FastAPI after the staging Parquet has been written.
+    # ------------------------------------------------
+    upload_write_job:
+      name: "Manual File Uploader - Upload Write Job"
+      description:
+        Reads the staged Parquet for a single upload, stamps
+        audit columns, and writes the result to the target
+        Delta table. Triggered once per upload by the
+        Manual File Uploader FastAPI backend.
+
+      tasks:
+        - task_key: write_upload_to_table
+          description: "Write the staged Parquet to the target Delta table"
+          spark_python_task:
+            python_file: ../src/upload_write_job.py
+
+            parameters:
+              - "--template_id"
+              - "{{job.parameters.template_id}}"
+              - "--upload_id"
+              - "{{job.parameters.upload_id}}"
+              - "--uploaded_by"
+              - "{{job.parameters.uploaded_by}}"
+
+          environment_key: serverless_env
+
+      # Job level parameters - set per-run by FastAPI when
+      # the job is triggered via the REST API.
+      parameters:
+        - name: template_id
+          default: ""
+        - name: upload_id
+          default: ""
+        - name: uploaded_by
+          default: ""
+
+      environments:
+        - environment_key: serverless_env
+          spec:
+            client: "5"
+
+      # 30 minute ceiling. Most uploads finish in under a
+      # minute - 100 MB Parquet writes to Delta are fast on
+      # serverless. A 30 minute run signals something is
+      # wrong (slow ADLS, table contention).
+      timeout_seconds: 1800
+
+      # Single concurrent run per job definition. Multiple
+      # uploads to different templates run as separate
+      # job runs in parallel because each gets its own run_id;
+      # this just prevents accidental double-triggering of
+      # the same job within Databricks.
+      max_concurrent_runs: 1
