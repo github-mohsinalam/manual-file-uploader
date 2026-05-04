@@ -18,6 +18,7 @@ from fastapi import (
     HTTPException,
     UploadFile,
     status,
+    BackgroundTasks
 )
 from sqlalchemy.orm import Session
 
@@ -34,8 +35,10 @@ from app.services.storage.storage_service import (
     storage_service,
 )
 
+from app.services.databricks.client import trigger_upload_write_job
 from app.services.validation import (
     apply_threshold_and_stage,
+    poll_upload_run_and_finalize,
     run_validation_phase,
 )
 
@@ -134,6 +137,7 @@ def _enforce_size_limit(file_bytes: bytes) -> None:
     status_code=status.HTTP_201_CREATED,
 )
 def upload_file(
+    background_tasks: BackgroundTasks,
     template_id: UUID = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -240,7 +244,47 @@ def upload_file(
         )
         db.refresh(upload)
 
-    # NOTE: Subsequent tasks add steps here:
-    #   - Trigger Databricks write job (Task 7.8)
+    # Step 9: Trigger Databricks write job and schedule
+    # polling. Only reached on the happy path - if any
+    # earlier step set status='failed', skip the Databricks
+    # round trip entirely.
+    if upload.status == "constraints_checked":
+        try:
+            run_id = trigger_upload_write_job(
+                template_id=str(template.id),
+                upload_id=str(upload.id),
+                uploaded_by=current_user.email,
+            )
+        except Exception as e:
+            # The trigger itself failed - Databricks unreachable,
+            # auth issue, job_id misconfigured. Mark the upload
+            # failed before returning so the user sees the
+            # problem; no point pretending the job is running.
+            logger.error(
+                "Upload %s - trigger failed: %s",
+                upload.id, e, exc_info=True,
+            )
+            upload.status = "failed"
+            upload.error_summary = (
+                f"Failed to trigger Databricks write job: {e}"
+            )
+            from datetime import datetime, timezone
+            upload.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(upload)
+            return upload
+
+        upload.databricks_run_id = str(run_id)
+        upload.status = "writing_to_catalog"
+        db.commit()
+        db.refresh(upload)
+
+        # Schedule polling AFTER the response is sent.
+        # BackgroundTask runs poll_upload_run_and_finalize in its own
+        # thread with its own DB session.
+        background_tasks.add_task(
+            poll_upload_run_and_finalize,
+            upload_id=upload.id,
+        )
 
     return upload

@@ -81,6 +81,47 @@ def trigger_ddl_job(template_id: str) -> int:
 
     return run_id
 
+def trigger_upload_write_job(
+    template_id: str, upload_id: str, uploaded_by: str
+) -> int:
+    """
+    Trigger the upload write job for a single upload.
+
+    Args:
+        template_id: UUID string of the target template
+        upload_id:   UUID string of the upload_history row
+        uploaded_by: email of the uploader (audit field)
+
+    Returns:
+        Databricks run_id (integer) - persist on
+        upload_history.databricks_run_id so the polling
+        task can retrieve the run later.
+    """
+    if not settings.databricks_write_job_id:
+        raise ValueError("DATABRICKS_WRITE_JOB_ID is not configured")
+
+    client = get_workspace_client()
+    job_id = int(settings.databricks_write_job_id)
+
+    logger.info(
+        f"Triggering upload write job {job_id} for upload {upload_id}"
+    )
+
+    run = client.jobs.run_now(
+        job_id=job_id,
+        job_parameters={
+            "template_id": str(template_id),
+            "upload_id": str(upload_id),
+            "uploaded_by": uploaded_by,
+        },
+    )
+
+    run_id = run.run_id
+    logger.info(
+        f"Upload write job triggered. job_id={job_id} run_id={run_id} "
+        f"upload={upload_id}"
+    )
+    return run_id
 
 def get_run_status(run_id: int) -> Run:
     """
