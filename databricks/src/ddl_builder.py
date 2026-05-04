@@ -30,6 +30,34 @@ Input dict structure (template_config):
 
 from typing import List
 
+from typing import List
+
+
+# Audit columns added to DDL, every table this tool
+# creates has these three columns regardless of the user's
+# template configuration.
+#
+# Kept here so the DDL builder is the single authoritative
+# source of the table shape. The upload write job reads this
+# tuple to know which fields it needs to set before saving.
+AUDIT_COLUMNS: List[dict] = [
+    {
+        "name": "_uploaded_by",
+        "data_type": "STRING",
+        "comment": "Email of the user who performed the upload",
+    },
+    {
+        "name": "_uploaded_at",
+        "data_type": "TIMESTAMP",
+        "comment": "When the upload batch was written",
+    },
+    {
+        "name": "_upload_id",
+        "data_type": "STRING",
+        "comment": "UUID of the upload_history row that wrote this batch",
+    },
+]
+
 
 def escape_sql_string(value: str) -> str:
     """
@@ -86,6 +114,7 @@ def build_create_table_ddl(config: dict) -> str:
     column_clauses = [
         build_column_definition(col) for col in included_columns
     ]
+    column_clauses.extend(_build_audit_column_clauses())
     columns_block = ",\n    ".join(column_clauses)
 
     table_comment = config.get("description", "") or ""
@@ -180,3 +209,21 @@ def build_grant_statements(config: dict) -> List[str]:
         f"GRANT USE SCHEMA ON SCHEMA {catalog}.{schema} TO `{reader_group}`",
         f"GRANT SELECT ON TABLE {fqn} TO `{reader_group}`",
     ]
+
+def _build_audit_column_clauses() -> List[str]:
+    """
+    Build the DDL clauses for the three platform audit columns.
+
+    Returns one string per audit column in AUDIT_COLUMNS,
+    formatted to match what build_column_definition emits for
+    user-configured columns. Audit columns are nullable - they
+    are filled by the write job, not by user input.
+    """
+    clauses = []
+    for col in AUDIT_COLUMNS:
+        comment_escaped = escape_sql_string(col["comment"])
+        clauses.append(
+            f"{col['name']} {col['data_type']} "
+            f"COMMENT '{comment_escaped}'"
+        )
+    return clauses
