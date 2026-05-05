@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS upload_validation_errors (
             'UNIQUE',
             'TYPE_MISMATCH',
             'SCHEMA_MISMATCH',
-            'ENCODING_ERROR'
+            'ENCODING_ERROR',
+            'PARSE_ERROR'
         ))
 );
 

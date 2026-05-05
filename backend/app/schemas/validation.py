@@ -29,6 +29,7 @@ ValidationErrorType = Literal[
     "TYPE_MISMATCH",
     "SCHEMA_MISMATCH",
     "ENCODING_ERROR",
+    "PARSE_ERROR",
 ]
 
 

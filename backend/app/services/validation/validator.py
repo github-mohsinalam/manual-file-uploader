@@ -212,13 +212,18 @@ def validate_file(
         template.file_format, len(columns), len(file_bytes),
     )
 
-    # Step 1 - parse the file into Polars
+    # Step 1 - parse the file into Polars.
+    # Two failure modes are surfaced here as schema failure:
+    #   - Encoding mismatch (template says utf-8, file is
+    #     utf-16 etc.) - reported as ENCODING_ERROR.
+    #   - Anything else (corrupt CSV, ragged rows, malformed
+    #     XLSX, mismatched quotes) - reported as PARSE_ERROR.
+    # In both cases there is no DataFrame to validate, so we
+    # treat the upload like schema failure: skip constraint
+    # checks, terminate with a single error row.
     try:
         df = _read_file(file_bytes, template)
     except UnicodeDecodeError as e:
-        # Encoding mismatch - return as a single ENCODING_ERROR
-        # The user's file does not match the encoding declared
-        # on the template. They need to fix one or the other.
         logger.warning("Encoding error during file read: %s", e)
         return ValidationResult(
             total_rows=0,
@@ -237,7 +242,40 @@ def validate_file(
             )],
             schema_failed=True,
         )
-
+    except Exception as e:
+        # Catches polars.exceptions.ComputeError, fastexcel
+        # errors, IO errors, and any other parse failure.
+        # We deliberately catch broadly because Polars/fastexcel
+        # do not expose a single base exception class we can
+        # narrow on, and the user-facing outcome is the same
+        # regardless of which library complained: the file
+        # could not be parsed.
+        #
+        # The exception message is included verbatim in
+        # error_message so the user sees what Polars said.
+        # That can be technical (e.g. "found more fields than
+        # defined in schema") but it is more useful than a
+        # generic "parse failed".
+        logger.warning(
+            "Parse error during file read: %s", e, exc_info=True,
+        )
+        return ValidationResult(
+            total_rows=0,
+            valid_rows=0,
+            invalid_rows=0,
+            errors=[ValidationError(
+                row_number=0,
+                column_name="",
+                error_type="PARSE_ERROR",
+                error_message=(
+                    f"File could not be parsed as "
+                    f"{template.file_format}: {e}"
+                ),
+                raw_value=None,
+            )],
+            schema_failed=True,
+        )
+    
     total_rows = df.height
     logger.info("File parsed: rows=%d columns=%s", total_rows, df.columns)
 

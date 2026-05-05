@@ -192,16 +192,23 @@ def _build_schema_summary(errors: list[ValidationError]) -> str:
     """
     Build the error_summary text for a schema-failed upload.
 
-    Three cases, in priority order:
-      1. ENCODING_ERROR: file could not be decoded at all.
-         Surface a fixed message.
-      2. SCHEMA_MISMATCH: list the offending column names
-         so the user can see what is wrong without opening
-         the error detail page (D4, Option B).
-      3. Fallback: count of errors. Should not normally fire
-         since schema failure currently only emits the two
+      1. PARSE_ERROR: file is corrupt or unreadable. The
+         exception text from Polars sits in error_message
+         on the single error row; surface it here too so
+         the user sees the cause without opening the detail
+         page.
+      2. ENCODING_ERROR: file could not be decoded.
+      3. SCHEMA_MISMATCH: list the offending column names.
+      4. Fallback: count of errors. Should not normally
+         fire since schema failure only emits the three
          error types above.
     """
+    parse_errors = [e for e in errors if e.error_type == "PARSE_ERROR"]
+    if parse_errors:
+        return (
+            f"File could not be parsed: {parse_errors[0].error_message}"
+        )
+
     if any(e.error_type == "ENCODING_ERROR" for e in errors):
         return (
             "File encoding does not match the template's "
