@@ -43,7 +43,7 @@ class Template(Base, TimestampMixin):
     file_format = Column(String(10), nullable=False, default="csv")
     delimiter = Column(String(5), nullable=False, default=",")
     encoding = Column(String(20), nullable=False, default="UTF-8")
-    write_mode = Column(String(10), nullable=False, default="append")
+    write_mode = Column(String(10), nullable=False, default="overwrite")
 
     bad_row_threshold = Column(Numeric(5, 2), nullable=False, default=0.00)
     bad_row_action = Column(String(10), nullable=False, default="fail")
