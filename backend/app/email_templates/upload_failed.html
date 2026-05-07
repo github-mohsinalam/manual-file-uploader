@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Upload failed: {{ template_display_name }}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333; max-width: 600px; margin: 0 auto;">
+
+  <h2 style="color: #dc2626;">Your upload failed</h2>
+
+  <p>Hello,</p>
+
+  <p>
+    Your file upload to template
+    <strong>{{ template_display_name }}</strong>
+    did not complete. No rows were written to the Unity
+    Catalog table.
+  </p>
+
+  <div style="background: #fee2e2; padding: 16px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0 0 8px 0;"><strong>File:</strong> {{ original_filename }}</p>
+    <p style="margin: 0 0 8px 0;"><strong>Target table:</strong> <code>{{ fully_qualified_name }}</code></p>
+    {% if total_rows %}
+    <p style="margin: 0 0 8px 0;"><strong>Rows in file:</strong> {{ total_rows }}</p>
+    {% endif %}
+    <p style="margin: 0;"><strong>Upload ID:</strong> <code>{{ upload_id }}</code></p>
+  </div>
+
+  <h3 style="margin-top: 28px;">Reason</h3>
+
+  <p style="background: #f3f4f6; padding: 12px; border-radius: 6px;">
+    {{ error_summary }}
+  </p>
+
+  <h3 style="margin-top: 28px;">What to do next</h3>
+
+  <p>
+    Review the reason above. If the issue is in your source
+    file (bad rows, schema mismatch, encoding), fix it and
+    re-upload. If the failure looks system-related (Databricks
+    job failure, polling timeout), contact your platform admin.
+  </p>
+
+  <p>
+    Detailed row-level errors (if any) are available in the
+    application's upload history.
+  </p>
+
+  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+
+  <p style="color: #666; font-size: 12px;">
+    This is an automated notification from MFU Notifications.
+  </p>
+
+</body>
+</html>

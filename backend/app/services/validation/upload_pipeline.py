@@ -45,6 +45,7 @@ from app.services.storage.storage_service import (
     build_staging_path,
     storage_service,
 )
+from app.services.validation.emails import send_upload_result_email
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ def run_validation_phase(
     result = validate_file(file_bytes, template, columns)
 
     if result.schema_failed:
-        return _terminate_on_schema_failure(db, upload, result)
+        return _terminate_on_schema_failure(db, upload, template, result)
 
     # Schema passed - bump status (commit 1).
     # We commit between schema and constraint phases so a
@@ -128,6 +129,7 @@ def run_validation_phase(
 def _terminate_on_schema_failure(
     db: Session,
     upload: UploadHistory,
+    template: Template,
     result: ValidationResult,
 ) -> ValidationResult:
     """
@@ -155,6 +157,7 @@ def _terminate_on_schema_failure(
         "Upload %s - schema validation failed: %s",
         upload.id, upload.error_summary,
     )
+    send_upload_result_email(upload, template)
     return result
 
 
@@ -280,7 +283,7 @@ def apply_threshold_and_stage(
 
     failure_reason = _evaluate_threshold(template, result)
     if failure_reason is not None:
-        _terminate_failed(db, upload, failure_reason)
+        _terminate_failed(db, upload, template, failure_reason)
         return False
 
     # Threshold passed. Write the clean DataFrame to staging.
@@ -298,7 +301,7 @@ def apply_threshold_and_stage(
             upload.id, e, exc_info=True,
         )
         _terminate_failed(
-            db, upload,
+            db, upload, template,
             f"Failed to stage clean data for write: {e}",
         )
         return False
@@ -401,7 +404,7 @@ def _write_staging_parquet(
 
 
 def _terminate_failed(
-    db: Session, upload: UploadHistory, reason: str
+    db: Session, upload: UploadHistory, template: Template, reason: str
 ) -> None:
     """
     Mark an upload as failed with the given reason.
@@ -416,3 +419,4 @@ def _terminate_failed(
     upload.completed_at = datetime.now(timezone.utc)
     db.commit()
     logger.warning("Upload %s - failed: %s", upload.id, reason)
+    send_upload_result_email(upload, template)

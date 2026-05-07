@@ -28,6 +28,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database.database import engine
 from app.models.upload_history import UploadHistory
 from app.services.databricks.client import get_run_status
+from app.services.validation.emails import send_upload_result_email
 
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,13 @@ def _handle_success(db, upload: UploadHistory) -> None:
     db.commit()
     db.refresh(upload)
 
+    # Send the result email. The poller is already running in
+    # a BackgroundTask so this synchronous send doesn't block
+    # any HTTP response.
+    template = upload.template
+    if template is not None:
+        send_upload_result_email(upload, template)
+
 
 def _handle_failure(
     db,
@@ -188,3 +196,7 @@ def _handle_failure(
     logger.error(
         f"Upload {upload.id} - write run failed. {error_message}"
     )
+
+    template = upload.template
+    if template is not None:
+        send_upload_result_email(upload, template)

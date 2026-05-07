@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Upload completed: {{ template_display_name }}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333; max-width: 600px; margin: 0 auto;">
+
+  <h2 style="color: #16a34a;">Your upload completed successfully</h2>
+
+  <p>Hello,</p>
+
+  <p>
+    Your file upload to template
+    <strong>{{ template_display_name }}</strong>
+    has finished. All rows were written to the Unity Catalog
+    table.
+  </p>
+
+  <div style="background: #f3f4f6; padding: 16px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0 0 8px 0;"><strong>File:</strong> {{ original_filename }}</p>
+    <p style="margin: 0 0 8px 0;"><strong>Target table:</strong> <code>{{ fully_qualified_name }}</code></p>
+    <p style="margin: 0 0 8px 0;"><strong>Rows written:</strong> {{ valid_rows }} of {{ total_rows }}</p>
+    <p style="margin: 0;"><strong>Upload ID:</strong> <code>{{ upload_id }}</code></p>
+  </div>
+
+  <p>
+    The data is now available in Unity Catalog. Querying users
+    will see your changes immediately.
+  </p>
+
+  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+
+  <p style="color: #666; font-size: 12px;">
+    This is an automated notification from MFU Notifications.
+  </p>
+
+</body>
+</html>

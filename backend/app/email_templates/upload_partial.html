@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Upload completed with warnings: {{ template_display_name }}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333; max-width: 600px; margin: 0 auto;">
+
+  <h2 style="color: #d97706;">Your upload completed with warnings</h2>
+
+  <p>Hello,</p>
+
+  <p>
+    Your file upload to template
+    <strong>{{ template_display_name }}</strong>
+    finished, but some rows were dropped during validation.
+    The valid rows have been written to the Unity Catalog
+    table; the invalid rows were not included.
+  </p>
+
+  <div style="background: #fef3c7; padding: 16px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0 0 8px 0;"><strong>File:</strong> {{ original_filename }}</p>
+    <p style="margin: 0 0 8px 0;"><strong>Target table:</strong> <code>{{ fully_qualified_name }}</code></p>
+    <p style="margin: 0 0 8px 0;"><strong>Rows written:</strong> {{ valid_rows }}</p>
+    <p style="margin: 0 0 8px 0;"><strong>Rows dropped:</strong> {{ invalid_rows }} of {{ total_rows }}</p>
+    <p style="margin: 0;"><strong>Upload ID:</strong> <code>{{ upload_id }}</code></p>
+  </div>
+
+  <h3 style="margin-top: 28px;">What to do next</h3>
+
+  <p>
+    The dropped rows failed validation against the template's
+    rules - typically a type mismatch, missing required value,
+    or duplicate value on a unique column. To see the
+    individual errors, view this upload in the application.
+  </p>
+
+  <p>
+    If those rows mattered, fix them in the source file and
+    re-upload.
+  </p>
+
+  <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+
+  <p style="color: #666; font-size: 12px;">
+    This is an automated notification from MFU Notifications.
+  </p>
+
+</body>
+</html>

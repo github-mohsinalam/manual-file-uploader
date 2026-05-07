@@ -9,6 +9,7 @@ Endpoints:
 import logging
 from pathlib import Path
 from uuid import UUID
+from datetime import datetime, timezone
 
 from fastapi import (
     APIRouter,
@@ -41,6 +42,7 @@ from app.services.validation import (
     poll_upload_run_and_finalize,
     run_validation_phase,
 )
+from app.services.validation.emails import send_upload_result_email
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +202,9 @@ def upload_file(
         )
         upload.status = "failed"
         upload.error_summary = f"Storage upload failed: {e}"
+        upload.completed_at = datetime.now(timezone.utc)
         db.commit()
+        send_upload_result_email(upload, template)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save uploaded file: {e}",
@@ -272,6 +276,7 @@ def upload_file(
             upload.completed_at = datetime.now(timezone.utc)
             db.commit()
             db.refresh(upload)
+            send_upload_result_email(upload, template)
             return upload
 
         upload.databricks_run_id = str(run_id)
