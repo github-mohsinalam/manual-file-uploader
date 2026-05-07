@@ -3,6 +3,9 @@ Uploads router - file upload endpoints.
 
 Endpoints:
     POST /uploads               Upload a file for an Approved template
+    GET  /uploads               List uploads with filters
+    GET  /uploads/{id}          Get single upload
+    GET  /uploads/{id}/errors   List validation errors for an upload
 
 """
 
@@ -10,6 +13,7 @@ import logging
 from pathlib import Path
 from uuid import UUID
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import (
     APIRouter,
@@ -19,7 +23,8 @@ from fastapi import (
     HTTPException,
     UploadFile,
     status,
-    BackgroundTasks
+    BackgroundTasks,
+    Query
 )
 from sqlalchemy.orm import Session
 
@@ -30,7 +35,9 @@ from app.database.database import get_db
 from app.models.domain import Domain
 from app.models.template import Template
 from app.models.upload_history import UploadHistory
-from app.schemas.upload_history import UploadSummary
+from app.models.upload_validation_error import UploadValidationError
+from app.schemas.upload_history import UploadSummary, UploadHistoryResponse
+from app.schemas.upload_validation_error import UploadValidationErrorResponse
 from app.services.storage.storage_service import (
     build_upload_path,
     storage_service,
@@ -293,3 +300,149 @@ def upload_file(
         )
 
     return upload
+
+# ================================================
+# GET endpoints 
+# ================================================
+
+@router.get("", response_model=list[UploadHistoryResponse])
+def list_uploads(
+    db: Session = Depends(get_db),
+    template_id: Optional[UUID] = Query(
+        None,
+        description="Filter by template.",
+    ),
+    uploaded_by: Optional[str] = Query(
+        None,
+        description="Filter by uploader email.",
+    ),
+    upload_status: Optional[str] = Query(
+        None,
+        alias="status",
+        description=(
+            "Filter by status (in_progress, file_uploaded, "
+            "schema_validated, constraints_checked, "
+            "writing_to_catalog, completed, partial, failed)."
+        ),
+    ),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """
+    List uploads with optional filters and pagination.
+
+    Multiple filters apply with AND semantics. Results are
+    ordered by uploaded_at descending so the newest uploads
+    appear first - matches the templates list convention.
+
+    Authorization is open: any authenticated user can list
+    any upload. Scoping by uploader is parked in
+    future_improvements.md.
+    """
+    query = db.query(UploadHistory)
+
+    if template_id:
+        query = query.filter(UploadHistory.template_id == template_id)
+
+    if uploaded_by:
+        query = query.filter(UploadHistory.uploaded_by == uploaded_by)
+
+    if upload_status:
+        query = query.filter(UploadHistory.status == upload_status)
+
+    return (
+        query
+        .order_by(UploadHistory.uploaded_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+
+@router.get("/{id}", response_model=UploadHistoryResponse)
+def get_upload(
+    id: UUID,
+    db: Session = Depends(get_db),
+):
+    """
+    Get a single upload by ID.
+
+    Returns the full UploadHistoryResponse - drives the
+    progress stepper UI in the frontend, which polls this
+    endpoint every 2-3 seconds while watching status.
+    """
+    upload = (
+        db.query(UploadHistory)
+        .filter(UploadHistory.id == id)
+        .first()
+    )
+    if not upload:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Upload not found: {id}",
+        )
+    return upload
+
+
+@router.get(
+    "/{id}/errors",
+    response_model=list[UploadValidationErrorResponse],
+)
+def list_upload_errors(
+    id: UUID,
+    db: Session = Depends(get_db),
+    error_type: Optional[str] = Query(
+        None,
+        description=(
+            "Filter by error type (NOT_NULL, UNIQUE, "
+            "TYPE_MISMATCH, SCHEMA_MISMATCH, ENCODING_ERROR, "
+            "PARSE_ERROR)."
+        ),
+    ),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """
+    List validation errors for an upload, paginated.
+
+    Errors are ordered by row_number ascending then
+    column_name ascending - users typically read errors
+    top-down through their file. The validator caps total
+    errors at 1000 per upload, so a single result page can
+    return up to 500.
+
+    Returns 404 if the upload itself does not exist (helps
+    distinguish "no errors" from "no such upload").
+    """
+    # Confirm the upload exists - otherwise an empty list
+    # would mean both "valid upload, no errors" and "bogus
+    # upload_id". The 404 disambiguates.
+    upload_exists = (
+        db.query(UploadHistory.id)
+        .filter(UploadHistory.id == id)
+        .first()
+    )
+    if not upload_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Upload not found: {id}",
+        )
+
+    query = (
+        db.query(UploadValidationError)
+        .filter(UploadValidationError.upload_id == id)
+    )
+
+    if error_type:
+        query = query.filter(UploadValidationError.error_type == error_type)
+
+    return (
+        query
+        .order_by(
+            UploadValidationError.row_number.asc(),
+            UploadValidationError.column_name.asc(),
+        )
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
