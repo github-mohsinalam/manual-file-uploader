@@ -82,3 +82,8 @@ frontend/dist/
 # Jupyter Notebooks checkpoints
 # ================================================
 .ipynb_checkpoints/
+
+# ================================================
+# Miscellaneous
+# ================================================
+docs/project_state.md
