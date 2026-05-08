@@ -32,6 +32,97 @@ processes the same way the original polling task would have.
 **Problem:**
 The current email sent to approver conatins basic details like table name and domain.It doesn't give any details about the template's column.
 
-**SProposed solution:**
+**Proposed solution:**
 We can add a JSON view to capture column details .
+
+## Reliability
+
+### Upload polling task crash recovery
+
+**Problem:**
+Same as the DDL polling task crash recovery item. After
+the upload write job is triggered, FastAPI polls Databricks
+in a background task. If the FastAPI server crashes or
+restarts mid-poll, the task is lost. The Databricks job
+continues to completion but the upload stays stuck in
+`writing_to_catalog` status with `databricks_run_id`
+populated.
+
+**Proposed solution:**
+Extend the periodic scheduler job already proposed for DDL
+recovery to also handle uploads. Query the database for
+upload_history rows in `writing_to_catalog` status with a
+non-null `databricks_run_id`, fetch each Databricks run
+status, and finalize each row the same way the original
+poller would have.
+
+**Effort estimate:** ~1 hour on top of the DDL recovery
+work. Same code shape, different table.
+
+## Code Organization
+
+### Rename services/validation to services/upload
+
+**Problem:**
+The directory `backend/app/services/validation/` contains
+the validator (correct), the upload pipeline orchestrator,
+the upload-result email helpers, and the upload polling
+task. Three of those four are upload-flow concerns, not
+validation concerns. The naming has drifted.
+
+**Proposed solution:**
+Rename the directory to `services/upload/`. Update every
+import (about 5-8 files in routers and the package
+itself). Files inside stay - just the package name moves.
+
+**Effort estimate:** ~30 minutes including a full test
+sweep to confirm no regressions.
+
+## Validation
+
+### Stricter CSV row-shape validation
+
+**Problem:**
+Polars' CSV reader is lenient by default. A file with
+mismatched quotes that the parser can recover from passes
+through to schema validation, where the structurally bad
+data may or may not surface depending on how Polars chose
+to interpret it. Real example caught during Phase 7
+testing: a row like `2,"Student_2',82` did not raise
+PARSE_ERROR; instead Polars parsed surrounding rows
+incorrectly.
+
+**Proposed solution:**
+Pre-validate row-shape consistency before handing bytes
+to Polars. Count delimiters per raw line; raise
+PARSE_ERROR if any line has a different field count
+from the header. Cheap to implement, catches realistic
+corruption cases.
+
+**Effort estimate:** ~30 minutes.
+
+## Authorization
+
+### Scope upload reads to the uploader
+
+**Problem:**
+GET /uploads, GET /uploads/{id}, and GET /uploads/{id}/errors
+are open to any authenticated caller. Any user can list
+or fetch any upload regardless of who created it. Same
+pattern is in place for templates listing.
+
+This was an explicit decision during development. Tightening it later means adding
+filters like `WHERE uploaded_by = current_user.email`
+to each GET endpoint, plus a 403 path when a user tries
+to fetch by ID an upload they did not create.
+
+**Proposed solution:**
+Add per-row authorization on all upload GET endpoints.
+Either tighten unconditionally (each user sees only
+their own) or add a role-based override (admins see
+everything). Decision pending - probably worth a short
+discussion before implementing.
+
+**Effort estimate:** 1-2 hours including pytest coverage
+for the new permission paths.
 

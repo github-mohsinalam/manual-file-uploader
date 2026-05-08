@@ -45,7 +45,7 @@ Phase 3  — SQLAlchemy models ✓ COMPLETE
 Phase 4  — Azure infrastructure (storage, etc.) ✓ COMPLETE  
 Phase 5  — Databricks DAB bundle, DDL job, UC catalog ✓ COMPLETE  
 Phase 6  — Approval Workflow and Template API ✓ COMPLETE  
-Phase 7  — Upload API ← IN PROGRESS  
+Phase 7  — Upload API ✓ COMPLETE  
 Phase 8  — Entra ID auth (planned)  
 Phase 9  — React frontend (planned)  
 Phase 10 — Testing (planned)  
@@ -58,23 +58,22 @@ Phase 13 — VNet peering exercise (bonus, planned)
 Task 7.1  — Pydantic schemas for upload resources ✓ CLOSED  
 Task 7.2  — POST /uploads endpoint scaffolding ✓ CLOSED  
 Task 7.3  — Azure Blob Storage upload helper ✓ CLOSED  
-Task 7.4  — Polars validation engine (Layer 1) ← NEXT  
-Task 7.5  — Validation error recording  
-Task 7.6  — Bad row threshold logic + staging Parquet write  
-Task 7.7  — Databricks write job  
-Task 7.8  — Databricks job trigger + polling  
-Task 7.9  — Status tracking transitions  
-Task 7.10 — Upload result email  
-Task 7.11 — GET endpoints for uploads and errors  
-Task 7.12 — End-to-end test  
-
-
+Task 7.4  — Polars validation engine (Layer 1) ✓ CLOSED  
+Task 7.5  — Validation error recording ✓ CLOSED  
+Task 7.6  — Bad row threshold logic + staging Parquet write ✓ CLOSED  
+Task 7.7  — Databricks write job ✓ CLOSED  
+Task 7.8  — Databricks job trigger + polling ✓ CLOSED  
+Task 7.9  — Status tracking transitions ✓ ABSORBED (covered by 7.5/7.6/7.8;
+            PARSE_ERROR work shipped under this task number)  
+Task 7.10 — Upload result email ✓ CLOSED  
+Task 7.11 — GET endpoints for uploads and errors ✓ CLOSED  
+Task 7.12 — End-to-end test ✓ CLOSED
 ---
 
 ## Time Constraint
 
-Azure free trial has approximately 16 days remaining at
-start of Phase 7. Priority is to finish end-to-end product
+Azure free trial has approximately 10 days remaining at
+start of Phase 9. Priority is to finish end-to-end product
 running on Azure before trial ends. Phase 12 documentation
 can happen after trial expires.
 
@@ -211,15 +210,25 @@ manual-file-uploader/
 │   │   │   ├── email/             (ACS email service)  
 │   │   │   ├── approval/          (workflow orchestration)  
 │   │   │   ├── databricks/        (Databricks SDK wrapper)  
-│   │   │   └── storage/  
+│   │   │   ├── storage/  
+│   │   │   │   ├── init.py  
+│   │   │   │   └── storage_service.py    (ADLS Gen2)  
+│   │   │   └── validation/        (upload pipeline - rename pending,  
+│   │   │       │                   see future_improvements.md)  
 │   │   │       ├── init.py  
-│   │   │       └── storage_service.py    (ADLS Gen2)  
+│   │   │       ├── validator.py           (Polars Layer 1)  
+│   │   │       ├── upload_pipeline.py     (orchestration + threshold)  
+│   │   │       ├── upload_polling.py      (Databricks run polling)  
+│   │   │       └── emails.py              (upload result emails)  
 │   │   ├── email_templates/       (Jinja2 HTML templates)  
 │   │   │   ├── test_email.html  
 │   │   │   ├── approval_request.html  
 │   │   │   ├── approval_decision.html  
 │   │   │   ├── template_activation.html  
-│   │   │   └── template_activation_failed.html  
+│   │   │   ├── template_activation_failed.html  
+│   │   │   ├── upload_completed.html  
+│   │   │   ├── upload_partial.html  
+│   │   │   └── upload_failed.html 
 │   │   └── main.py  
 │   ├── sql/                       (9 numbered SQL scripts)  
 │   ├── tests/                     (pytest)  
@@ -227,10 +236,14 @@ manual-file-uploader/
 │   └── .env (gitignored)  
 ├── databricks/  
 │   ├── resources/  
-│   │   └── jobs.yml               (DDL job)  
+│   │   └── jobs.yml               (DDL job + upload write job)  
 │   ├── src/  
-│   │   └── ddl_job.py             (DDL job script)  
-│   └── databricks.yml             (DAB config)  
+│   │   ├── ddl_builder.py         (CREATE TABLE DDL builder, includes  
+│   │   │                           audit column emission)  
+│   │   ├── ddl_job.py             (DDL job script)  
+│   │   ├── db_client.py           (Postgres JDBC helper)  
+│   │   └── upload_write_job.py    (Upload write job script)  
+│   └── databricks.yml             (DAB config)
 ├── azure_infra/  
 │   ├── 01_create_resource_group.sh  
 │   ├── 02_create_postgres.sh  
@@ -286,6 +299,29 @@ should NOT reintroduce these patterns.
 
 10. **Approval count function must use past-tense value** — querying
     approvals must filter `action == 'approved'` not `'approve'`.
+
+11. **Pydantic schema defaults override DB column defaults** — when
+    a Pydantic create-schema sets a field default (e.g. write_mode),
+    SQLAlchemy includes the explicit value in INSERT and the DB's
+    DEFAULT clause never fires. Fix all three layers when changing
+    defaults: Pydantic schema, SQLAlchemy model, SQL CHECK script.
+
+12. **Polars 1.38 cannot cast String to Boolean directly** — the
+    validator handles BOOLEAN with a custom token-matching expression
+    (true/t/yes/y/1 vs false/f/no/n/0, case-insensitive). Bare
+    .cast(pl.Boolean) raises InvalidOperationError.
+
+13. **Comparison on nullable DB columns crashes on None** — Python 3
+    raises TypeError on `None > 0`. Always None-guard before
+    comparison: `upload.invalid_rows and upload.invalid_rows > 0`,
+    or `(upload.invalid_rows or 0) > 0`. Affects all numeric
+    nullable columns we read.
+
+14. **CHECK constraint changes need ALTER TABLE on live DB** —
+    re-running the DDL script against an existing database has no
+    effect on existing constraints. Drop and re-add the constraint
+    explicitly when adding new enum values to error_type or status
+    columns.
 
 ---
 
@@ -373,8 +409,7 @@ these caused rework. Asking is cheap, rework is not.
 - project_state.md (this file) updated at end of each phase
 
 ### Commit Cadence
-After every closed task, commit changes with a clear message
-prefixed with task number. Push to GitHub.
+After every closed task, commit changes with a clear message. Push to GitHub.
 
 ### Testing Approach
 Manual via Swagger for development. Unit tests via pytest only
@@ -390,4 +425,4 @@ test at the close of each phase.
 
 ## Last Updated
 
-Phase 7, end of Task 7.3.
+Phase 7, complete (end of Task 7.12).
