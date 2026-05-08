@@ -174,15 +174,11 @@ template to be submittable.
 ### 4.1 DDL Job (triggered on template approval)
 
 #### Decision
-Non-declarative PySpark script (not DLT) used for the DDL job.
-DLT is not appropriate here because the DDL job only runs once per
-template approval and does not involve data ingestion. DLT pipelines
-are designed for ongoing streaming or batch data flows not one-time
-schema provisioning.
+PySpark script used for the DDL job.DDL job only runs once per template 
+approval and does not involve data ingestion. 
 
 #### Deployment approach
-All Databricks resources (DDL job, DLT pipeline, scheduled reminder
-jobs) are deployed via Databricks Asset Bundles (DABs).
+All Databricks resources are deployed via Databricks Asset Bundles (DABs).
 
 Rationale for DABs:
 - Infrastructure as code - Databricks jobs defined in version
@@ -239,6 +235,11 @@ logic functions are pure Python that can be tested locally.
 - UNIQUE constraint added as informational metadata only -
   NOT enforced by Delta Lake. Actual uniqueness enforced in
   Polars validation layer at upload time (see section 5.3)
+- Three platform audit columns appended to every table:
+  _uploaded_by (STRING), _uploaded_at (TIMESTAMP),
+  _upload_id (STRING). Underscore prefix
+  reserves the namespace - prevents collision with
+  user-configured columns.
 - UC grants applied via GRANT SQL statements in the script:
   - USE CATALOG on manualuploads catalog
   - USE SCHEMA on the relevant schema
@@ -395,7 +396,7 @@ Databricks write job.
 ### 5.5 Data Write Job (triggered after validation)
 
 #### Decision
-Plain Databricks Spark job (NOT DLT/SDP). Single shared job
+Plain Databricks Spark job . Single shared job
 parameterized per upload — created once via DABs deployment,
 triggered with parameters for each upload.
 
@@ -420,17 +421,21 @@ Rationale for plain Spark over SDP:
 - Spark script reads the Parquet, adds audit columns, writes
   to target Delta table
 - Audit columns added by the Spark script:
-  - uploaded_by - passed as job parameter
-  - uploaded_at - current_timestamp()
-  - upload_id - passed as job parameter
-- Write mode (append/overwrite) configured via job parameter
+  - _uploaded_by - passed as job parameter
+  - _uploaded_at - current_timestamp()
+  - _upload_id - passed as job parameter
+- Write mode (append/overwrite) fetched from database using job parameter(template_id)
 - FastAPI polls run_id for completion, updates upload_history
   status accordingly
 
 ### 5.6 Upload History
 
 #### Decision
-upload_history table tracks every file upload with these final columns:
+upload_history table tracks every file upload that is
+admitted past basic input validation (template_existance, file size and format
+extension). Admission-control failures (file too large,
+wrong extension) return HTTP 413/400 immediately and do
+NOT create an upload_history row. Final columns:
 
   Audit:
   - id, template_id, uploaded_by, uploaded_at, updated_at
@@ -450,17 +455,6 @@ upload_history table tracks every file upload with these final columns:
   Databricks tracking:
   - databricks_run_id — for the write job
 
-We deliberately removed redundant columns during Phase 7 design:
-- dropped_rows — same value as invalid_rows when action=drop
-- rows_written — same as valid_rows on success, 0 on failure
-  (Delta writes are atomic, no partial writes possible)
-- rows_dropped — Spark realistically never drops rows after
-  Polars validation, always 0
-- dlt_event_log_path — no longer using DLT
-
-All this information is derivable from valid_rows + invalid_rows
-+ status. Avoiding redundancy keeps the schema simpler and
-prevents drift.
 
 #### Implementation
 - upload_history row created at start of upload with status
@@ -653,4 +647,20 @@ and backend.
   mid-poll, the task is lost. Crash recovery deferred -
   see future_improvements.md.
 - Approval reminder emails not implemented - parked in
+  future_improvements.md.
+- Upload polling task is in-memory. Same as the
+  DDL polling task - if FastAPI restarts mid-poll the
+  upload is stuck in writing_to_catalog. Crash recovery
+  deferred for both - see future_improvements.md.
+- Polars CSV parser is lenient by default. Files with
+  ambiguous-but-parseable structure (e.g. mismatched
+  quotes that the parser can recover from) pass through
+  validation. PARSE_ERROR fires only on hard parse
+  failures. Stricter row-shape validation parked in
+  future_improvements.md.
+- Polars CSV parser is lenient by default. Files with
+  ambiguous-but-parseable structure (e.g. mismatched
+  quotes that the parser can recover from) pass through
+  validation. PARSE_ERROR fires only on hard parse
+  failures. Stricter row-shape validation parked in
   future_improvements.md.
