@@ -28,9 +28,6 @@ export interface TemplateApproval {
   action: ApprovalAction
   comment: string | null
 
-  /** Token expiry as ISO 8601. */
-  token_expires_at: string
-
   /** When the reviewer acted; null until they do. */
   actioned_at: string | null
 

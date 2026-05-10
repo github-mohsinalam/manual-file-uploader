@@ -39,7 +39,6 @@ export interface TemplateColumn {
   is_unique: boolean
   column_order: number
 
-  created_at: string
 }
 
 /**
@@ -51,11 +50,10 @@ export interface TemplateColumn {
 export interface TemplateColumnCreate {
   column_name: string
   display_name?: string | null
-  data_type?: ColumnDataType
+  data_type: ColumnDataType
   description?: string | null
   is_included?: boolean
   is_pii?: boolean
   is_nullable?: boolean
   is_unique?: boolean
-  column_order?: number
 }

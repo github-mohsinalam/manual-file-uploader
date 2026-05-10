@@ -17,6 +17,7 @@ export type ValidationErrorType =
   | 'TYPE_MISMATCH'
   | 'SCHEMA_MISMATCH'
   | 'ENCODING_ERROR'
+  | 'PARSE_ERROR'
 
 export interface UploadValidationError {
   id: string

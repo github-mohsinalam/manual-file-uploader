@@ -14,14 +14,12 @@ export interface TemplateReviewer {
   template_id: string
 
   reviewer_email: string
-  reviewer_name: string | null
+  reviewer_name: string
   reviewer_type: ReviewerType
-
-  created_at: string
 }
 
 export interface TemplateReviewerCreate {
   reviewer_email: string
-  reviewer_name?: string | null
+  reviewer_name: string
   reviewer_type?: ReviewerType
 }

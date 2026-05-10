@@ -3,8 +3,9 @@
  *
  * Mirrors backend/app/schemas/approval_action.py.
  *
- * The approval action endpoint accepts a token (in URL) and an
- * optional comment (in body), and returns an outcome summary.
+ * The approval action endpoint accepts a token (in URL) and a
+ * body containing the decision and an optional comment. Returns
+ * an outcome summary for the UI to display.
  */
 
 /**
@@ -14,19 +15,15 @@
  */
 export type ApprovalActionVerb = 'approve' | 'reject'
 
+/** Body of POST /approvals/{token}/{action}. */
 export interface ApprovalActionRequest {
+  decision: ApprovalActionVerb
   comment?: string | null
 }
 
+/** Response body returned after the action succeeds. */
 export interface ApprovalActionResponse {
-  template_id: string
-  reviewer_email: string
-
-  /** Past-tense form returned by the backend. */
-  action: 'approved' | 'rejected'
-
-  /** Current overall template status after this action. */
+  decision_recorded: boolean
   template_status: string
-
   message: string
 }

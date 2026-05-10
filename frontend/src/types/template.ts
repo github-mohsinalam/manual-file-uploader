@@ -40,7 +40,7 @@ export interface Template {
   fully_qualified_name: string
 
   file_format: FileFormat
-  delimiter: string
+  delimiter: string | null
   encoding: string
   write_mode: WriteMode
 
@@ -48,7 +48,6 @@ export interface Template {
   bad_row_threshold: string
   bad_row_action: BadRowAction
 
-  storage_path: string | null
   reader_group: string | null
 
   status: TemplateStatus
