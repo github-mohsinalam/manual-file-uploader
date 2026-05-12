@@ -6,7 +6,7 @@
  * are not user-creatable from this UI.
  */
 
-import { FolderTree } from 'lucide-react'
+import { Database } from 'lucide-react'
 
 import {
   Card,
@@ -58,7 +58,7 @@ export default function Domains() {
               <CardHeader>
                 <div className="flex items-start gap-3">
                   <div className="bg-slate-100 p-2 rounded-md">
-                    <FolderTree size={20} className="text-slate-700" />
+                    <Database size={20} className="text-slate-700" />
                   </div>
                   <div className="flex-1">
                     <CardTitle>{domain.name}</CardTitle>

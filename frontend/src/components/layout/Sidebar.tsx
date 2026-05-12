@@ -10,7 +10,7 @@ import { NavLink } from 'react-router-dom'
 import {
   FileText,
   Upload,
-  FolderTree,
+  Database,
   Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { to: '/templates', label: 'Templates', icon: FileText },
   { to: '/uploads', label: 'Uploads', icon: Upload },
-  { to: '/domains', label: 'Domains', icon: FolderTree },
+  { to: '/domains', label: 'Domains', icon: Database },
   { to: '/about', label: 'About', icon: Info },
 ]
 
