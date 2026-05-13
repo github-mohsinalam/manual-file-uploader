@@ -10,8 +10,8 @@
  * on every keystroke.
  */
 
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -53,16 +53,59 @@ const STATUS_OPTIONS: Array<{ value: TemplateStatus | 'all'; label: string }> = 
 ]
 
 export default function TemplatesList() {
-  // Filter state - local to this page.
-  const [statusFilter, setStatusFilter] = useState<TemplateStatus | 'all'>('all')
-  const [searchInput, setSearchInput] = useState('')
+  // URL is the source of truth for filter state. Navigating
+  // away and back, sharing the URL, or refreshing all preserve
+  // the user's current filters.
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  // Debounce the search input so we don't query the backend
-  // on every keystroke.
+  // Pull current filter values out of the URL.
+  // Sentinel 'all' represents "no status filter applied."
+  const statusFilter = (searchParams.get('status') ?? 'all') as TemplateStatus | 'all'
+  const urlSearch = searchParams.get('search') ?? ''
+
+  // Local mirror of the search input. Updated on every
+  // keystroke so typing feels snappy. After 300ms of no new
+  // input, the debounced value is pushed to the URL.
+  const [searchInput, setSearchInput] = useState(urlSearch)
   const debouncedSearch = useDebounce(searchInput, 300)
 
-  // Build the filters object. Undefined values get dropped
-  // from the URL by axios automatically.
+  // Push the debounced search value to the URL.
+  // Use replace=true so each keystroke does NOT pile up a
+  // history entry. Without replace, hitting Back would step
+  // through every character the user typed.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    if (debouncedSearch) {
+      next.set('search', debouncedSearch)
+    } else {
+      next.delete('search')
+    }
+    // Avoid rewriting the URL if the value is already there
+    // (prevents an infinite re-render loop).
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true })
+    }
+    // We intentionally only depend on debouncedSearch.
+    // Including searchParams would trigger this effect on
+    // every URL change, including the one we just made.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch])
+
+  // Handler for the status dropdown.
+  // Uses push (default) so the status change is a meaningful
+  // history step.
+  function handleStatusChange(value: string) {
+    const next = new URLSearchParams(searchParams)
+    if (value === 'all') {
+      next.delete('status')
+    } else {
+      next.set('status', value)
+    }
+    setSearchParams(next)
+  }
+
+  // Build the filters object passed to the query.
+  // Undefined values get dropped from the URL by axios.
   const filters = {
     status: statusFilter === 'all' ? undefined : statusFilter,
     search: debouncedSearch || undefined,
@@ -105,7 +148,7 @@ export default function TemplatesList() {
 
         <Select
           value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as TemplateStatus | 'all')}
+          onValueChange={handleStatusChange}
         >
           <SelectTrigger className="w-56">
             <SelectValue />
