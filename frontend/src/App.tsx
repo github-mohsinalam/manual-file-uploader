@@ -21,6 +21,7 @@ import {
 
 import { Layout } from '@/components/layout/Layout'
 import TemplatesList from '@/pages/TemplatesList'
+import TemplateDetail from '@/pages/TemplateDetail'
 import UploadsList from '@/pages/UploadsList'
 import Domains from '@/pages/Domains'
 import About from '@/pages/About'
@@ -36,6 +37,7 @@ function App() {
           <Route path="/" element={<Navigate to="/templates" replace />} />
 
           <Route path="/templates" element={<TemplatesList />} />
+          <Route path="/templates/:id" element={<TemplateDetail />} />
           <Route path="/uploads" element={<UploadsList />} />
           <Route path="/domains" element={<Domains />} />
           <Route path="/about" element={<About />} />
