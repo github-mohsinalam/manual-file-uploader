@@ -72,3 +72,42 @@ export async function updateTemplate(
 export async function deleteTemplate(id: string): Promise<void> {
   await api.delete(`/api/v1/templates/${id}`)
 }
+
+/**
+ * Result of POST /templates/parse-sample - inferred column metadata
+ * from a sample CSV/XLSX file.
+ */
+export interface ParsedColumn {
+  column_name: string
+  data_type: string
+  sample_values: string[]
+}
+
+export interface ParsedSampleResponse {
+  columns: ParsedColumn[]
+  total_rows_scanned: number
+}
+
+/**
+ * Parse a sample file (CSV or XLSX) and return inferred columns.
+ *
+ * Used by the wizard's columns step to prefill the column list
+ * from a user-uploaded file. No template is created or modified.
+ */
+export async function parseSampleFile(
+  file: File
+): Promise<ParsedSampleResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await api.post<ParsedSampleResponse>(
+    '/api/v1/templates/parse-sample',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  )
+  return response.data
+}
