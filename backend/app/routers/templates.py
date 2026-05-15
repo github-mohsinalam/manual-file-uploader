@@ -15,9 +15,18 @@ in subsequent tasks. This module focuses on the base CRUD.
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
+from fastapi import (
+    APIRouter, 
+    Depends, 
+    HTTPException, 
+    Query, 
+    status, 
+    BackgroundTasks,
+    UploadFile, 
+    File
+)
 from sqlalchemy.orm import Session
-
+from app.core.config import settings
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.database.database import get_db
@@ -31,6 +40,9 @@ from app.schemas.template import (
     TemplateResponse,
     TemplateUpdate,
 )
+
+from app.schemas.sample_column import SampleParseResponse
+from app.services.validation.sample_parser import parse_sample_file
 
 
 router = APIRouter(
@@ -342,3 +354,76 @@ def submit_template(
     )
 
     return template
+
+# ================================================
+# Sample file parsing
+# ================================================
+
+@router.post(
+    "/parse-sample",
+    response_model=SampleParseResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Parse a sample CSV/XLSX file to infer columns",
+    description=(
+        "Accepts a CSV or XLSX file upload, runs Polars over the "
+        "first 1000 rows, and returns inferred column names + "
+        "types + sample values. "
+        "Used by the template create wizard to prefill the columns "
+        "step so users do not have to type every column manually. "
+        "This endpoint is read-only - it does not persist anything."
+    ),
+)
+def parse_sample(
+    file: UploadFile = File(
+        ...,
+        description="Sample CSV or XLSX file. Max size: configured by settings.max_file_size_mb.",
+    ),
+):
+    """
+    Parse an uploaded sample file and return inferred column schema.
+
+    Validates file extension and size, hands the bytes to the
+    sample parser service, returns the result. Errors from the
+    parser become 400 responses.
+    """
+    # Step 1 - Validate filename + extension
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file has no name.",
+        )
+
+    extension = file.filename.rsplit(".", 1)[-1].lower()
+    if extension not in ("csv", "xlsx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Unsupported file extension '.{extension}'. "
+                f"Supported formats are .csv and .xlsx."
+            ),
+        )
+
+    # Step 2 - Read file into memory and enforce size limit.
+    # Same limit as the real upload flow.
+    file_bytes = file.file.read()
+    size_mb = len(file_bytes) / (1024 * 1024)
+    if size_mb > settings.max_file_size_mb:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=(
+                f"Sample file is {size_mb:.1f} MB - exceeds the "
+                f"limit of {settings.max_file_size_mb} MB."
+            ),
+        )
+
+    # Step 3 - Parse. Wrap ValueError into a 400.
+    try:
+        return parse_sample_file(
+            file_bytes=file_bytes,
+            file_extension=extension,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )

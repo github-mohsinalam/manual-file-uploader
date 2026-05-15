@@ -126,3 +126,38 @@ discussion before implementing.
 **Effort estimate:** 1-2 hours including pytest coverage
 for the new permission paths.
 
+## Backend Validation
+
+### Scope template name uniqueness to domain
+
+**Problem:**
+The backend currently enforces template name uniqueness
+globally - the SQL UNIQUE constraint is on
+`fully_qualified_name` but the FastAPI router uses an
+extra Python-level check that compares only `name`. This
+means `region_mapping` in Finance prevents `region_mapping`
+in Sales from existing, even though they target different
+Unity Catalog schemas and are unrelated entities.
+
+The fully_qualified_name uniqueness (which IS scoped to
+domain since it includes the schema) already provides
+correct database-level protection. The extra Python check
+in templates.py is what causes the over-restriction.
+
+**Proposed solution:**
+In `app/routers/templates.py`, change
+`_check_template_name_unique` to scope by domain:
+
+    query = db.query(Template).filter(
+        Template.name == name,
+        Template.domain_id == domain_id,
+    )
+
+Pass the domain_id from the create call. The check
+becomes: "no other template in THIS domain has THIS name".
+Update the error message accordingly.
+
+The same check on PATCH (template update) needs the same
+treatment.
+
+**Effort estimate:** ~20 minutes including a quick test.

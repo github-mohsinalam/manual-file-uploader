@@ -35,6 +35,11 @@ from app.schemas.upload_validation_error import (
     UploadValidationErrorResponse,
 )
 
+from app.schemas.sample_column import (
+    SampleColumnResponse,
+    SampleParseResponse,
+)
+
 __all__ = [
     "ApprovalActionRequest",
     "ApprovalActionResponse",
@@ -50,4 +55,6 @@ __all__ = [
     "UploadHistoryResponse",
     "UploadSummary",
     "UploadValidationErrorResponse",
+    "SampleColumnResponse",
+    "SampleParseResponse",
 ]

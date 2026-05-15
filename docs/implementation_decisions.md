@@ -51,6 +51,23 @@ for approval until the user explicitly clicks Submit.
   AND Unity Catalog via Databricks REST API to confirm no table
   exists with that name
 
+#### Sample file parsing endpoint
+
+- Endpoint: `POST /api/v1/templates/parse-sample`
+- Accepts: multipart upload of CSV or XLSX file
+- Returns: `SampleParseResponse` with `columns` list (column_name,
+  data_type, sample_values) plus `total_rows_scanned`
+- Logic lives in `app/services/validation/sample_parser.py`
+- No persistence - this is a one-shot inference call. The
+  frontend uses the response to prefill the wizard columns step;
+  the user can edit before saving via the existing
+  `POST /templates/{id}/columns` endpoint.
+- Polars `infer_schema_length=1000` for type inference
+- Up to 3 sample values returned per column
+- Dtypes mapped to our 9 supported types in `_map_polars_dtype`
+  with STRING fallback for anything unknown
+- Auth: uses the existing get_current_user stub (effectively
+  open until Phase 8 wires real auth)
 ### 2.2 Template Versioning
 
 #### Decision
