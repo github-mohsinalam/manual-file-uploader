@@ -357,7 +357,7 @@ function BackLink() {
       className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 cursor-pointer"
     >
       <ArrowLeft size={14} />
-      Back to templates
+      Back
     </button>
   )
 }

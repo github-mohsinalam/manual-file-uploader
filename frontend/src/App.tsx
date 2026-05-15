@@ -26,6 +26,8 @@ import UploadsList from '@/pages/UploadsList'
 import Domains from '@/pages/Domains'
 import About from '@/pages/About'
 import NotFound from '@/pages/NotFound'
+import TemplateCreateBasics from '@/pages/TemplateCreateBasics'
+import TemplateCreateColumns from '@/pages/TemplateCreateColumns'
 
 function App() {
   return (
@@ -37,6 +39,8 @@ function App() {
           <Route path="/" element={<Navigate to="/templates" replace />} />
 
           <Route path="/templates" element={<TemplatesList />} />
+          <Route path="/templates/new" element={<TemplateCreateBasics />} />
+          <Route path="/templates/new/:id/columns" element={<TemplateCreateColumns />} />
           <Route path="/templates/:id" element={<TemplateDetail />} />
           <Route path="/uploads" element={<UploadsList />} />
           <Route path="/domains" element={<Domains />} />
