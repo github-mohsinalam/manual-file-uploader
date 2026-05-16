@@ -161,3 +161,68 @@ The same check on PATCH (template update) needs the same
 treatment.
 
 **Effort estimate:** ~20 minutes including a quick test.
+
+## Documentation
+
+### End-to-end journey diagrams and narratives
+
+**Problem:**
+The project has many moving parts spread across backend
+routes, services, the React frontend, Databricks job triggers,
+and Unity Catalog. Understanding the full lifecycle of a
+template - from creation through approval, DDL provisioning,
+file upload, validation, and final Delta-table state - requires
+reading multiple files in multiple folders. There is no
+single document that traces the journey end-to-end.
+
+**Proposed solution:**
+Produce a `docs/end_to_end_flows.md` file capturing each
+major user journey as a numbered, plain-English flow:
+
+1. Template creation journey (Draft to active UC table)
+   - Creator submits wizard
+   - Approval emails dispatched
+   - Reviewers decide via frontend approval page
+   - DDL job runs in Databricks
+   - Creator receives activation email
+   - Template is Approved, ready for uploads
+
+2. File upload journey (uploaded CSV/XLSX to Delta row insert)
+   - Upload submitted via frontend
+   - File stored in Azure Blob
+   - Polars Layer 1 validation
+   - Databricks upload job triggered
+   - PySpark/Delta write completes
+   - Validation errors persisted (if any)
+   - Upload status moves to terminal state
+
+3. Approval flow (reviewer journey)
+   - Email arrives
+   - Click Approve in email
+   - Land on frontend approval page (no login)
+   - Review template details
+   - Add optional comment
+   - Confirm decision
+   - Already-decided revisits handled gracefully
+
+Each flow should include:
+- Numbered step-by-step narrative
+- File-level references for readers who want to dig in
+  (e.g. "approvals.py /approvals/{token}/approve")
+- A simple ASCII or mermaid sequence diagram showing the
+  hops between Frontend, FastAPI, PostgreSQL, Azure Blob,
+  Databricks, and ACS
+
+**Use cases:**
+- Onboarding new contributors quickly
+- Reference material for the LinkedIn announcement and
+  demo video script
+- Embedded in README as a "How it works" section
+- Help during debugging - given a step where things went
+  wrong, the doc tells you which files to check first
+
+**Effort estimate:** ~3 hours total for all three flows
+with diagrams. Best done at the END of Phase 9 once the
+whole user-facing journey is built and verifiable. Could
+land as part of Phase 12 (Documentation polish) or as a
+standalone task.
