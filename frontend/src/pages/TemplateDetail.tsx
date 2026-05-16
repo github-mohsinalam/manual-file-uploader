@@ -411,7 +411,7 @@ function ActionButtons({
         </Button>
           <Button
             onClick={() =>
-              alert('Submit-for-approval lands in a future task.')
+              onNavigate(`/templates/new/${template.id}/review`)
             }
           >
             <Send size={14} />

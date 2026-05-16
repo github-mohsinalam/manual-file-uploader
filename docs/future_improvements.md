@@ -27,14 +27,6 @@ processes the same way the original polling task would have.
 
 **Effort estimate:** ~2 hours
 
-## UI/UX
-### Approval email content
-**Problem:**
-The current email sent to approver conatins basic details like table name and domain.It doesn't give any details about the template's column.
-
-**Proposed solution:**
-We can add a JSON view to capture column details .
-
 ## Reliability
 
 ### Upload polling task crash recovery
@@ -226,3 +218,42 @@ with diagrams. Best done at the END of Phase 9 once the
 whole user-facing journey is built and verifiable. Could
 land as part of Phase 12 (Documentation polish) or as a
 standalone task.
+
+## Frontend-UX
+
+### Wizard stepper reflects actual completion state
+
+**Problem:**
+The wizard's progress stepper (top of every wizard page)
+colors past steps green and the current step dark, based
+purely on step number. It does not check whether those
+steps have actual data saved.
+
+This becomes misleading when a user lands on Step 4
+(review) with missing columns or reviewers - the stepper
+shows green checkmarks on Steps 2 and 3 even though the
+review page is also showing yellow warnings that those
+steps are incomplete. The stepper says "done", the body
+says "missing".
+
+**Proposed solution:**
+Pass actual completion state into WizardShell. The shell
+already knows `currentStep`; we add `completed: number[]`
+or boolean flags for each step. Logic:
+
+- Step 1 (basics) - always complete by the time the user
+  is past step 1 (the template wouldn't exist otherwise)
+- Step 2 (columns) - complete iff backend returns columns
+- Step 3 (reviewers) - complete iff backend returns
+  reviewers including at least one required
+- Step 4 (review) - the current step
+
+Each wizard page already fetches the data it needs, so
+the parent pages can pass completion flags into the shell.
+Steps with green checkmarks are ones with real data;
+steps without are gray (not green) even if the user has
+visually moved past them.
+
+**Effort estimate:** ~30 minutes. Update WizardShell props
+and stepper logic; update the four step pages to pass
+completion flags from their existing queries.
