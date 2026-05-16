@@ -45,7 +45,9 @@ import {
 import { Badge } from '@/components/ui/badge'
 
 import { StatusBadge } from '@/components/templates/StatusBadge'
+import { ApprovalTimeline } from '@/components/templates/ApprovalTimeline'
 import { useTemplate } from '@/hooks/useTemplate'
+import { useTemplateApprovals } from '@/hooks/useTemplateApprovals'
 import { useTemplateColumns } from '@/hooks/useTemplateColumns'
 import { useTemplateReviewers } from '@/hooks/useTemplateReviewers'
 import { useDomains } from '@/hooks/useDomains'
@@ -61,6 +63,7 @@ export default function TemplateDetail() {
   const templateQuery = useTemplate(id)
   const columnsQuery = useTemplateColumns(id)
   const reviewersQuery = useTemplateReviewers(id)
+  const approvalsQuery = useTemplateApprovals(id)
 
   // Domains are needed to resolve the template's domain_id
   // to a domain name. Cached from earlier visits to /domains.
@@ -315,18 +318,22 @@ export default function TemplateDetail() {
         </CardContent>
       </Card>
 
-      {/* Section 4 - Approval activity (placeholder) */}
+      {/* Section 4 - Approval activity */}
       <Card>
         <CardHeader>
           <CardTitle>Approval activity</CardTitle>
           <CardDescription>
-            Reviewer decisions on this template.
+            {template.status === 'Draft'
+              ? 'Approval rows will appear here once the template is submitted for approval.'
+              : 'Reviewer decisions on this template.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-slate-500">
-            Approval timeline will appear here in a future task.
-          </p>
+          <ApprovalTimeline
+            approvals={approvalsQuery.data}
+            isLoading={approvalsQuery.isLoading}
+            error={approvalsQuery.error as Error | null}
+          />
         </CardContent>
       </Card>
     </div>
