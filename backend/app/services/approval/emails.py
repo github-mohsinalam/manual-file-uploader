@@ -49,12 +49,12 @@ def send_approval_request_emails(
 
     for approval in approvals:
         approve_url = (
-            f"{settings.app_base_url}/api/v1/approvals/"
-            f"{approval.approval_token}/approve"
+            f"{settings.frontend_base_url}/approve"
+            f"?token={approval.approval_token}&action=approve"
         )
         reject_url = (
-            f"{settings.app_base_url}/api/v1/approvals/"
-            f"{approval.approval_token}/reject"
+            f"{settings.frontend_base_url}/approve"
+            f"?token={approval.approval_token}&action=reject"
         )
 
         reviewer_type = reviewer_types_by_email.get(

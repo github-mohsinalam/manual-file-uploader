@@ -11,6 +11,12 @@ from app.schemas.approval_action import (
     ApprovalActionRequest,
     ApprovalActionResponse,
 )
+
+from app.schemas.approval_token_info import (
+    ApprovalTokenInfoResponse,
+    ApprovalTokenTemplateInfo,
+)
+
 from app.schemas.domain import DomainResponse
 from app.schemas.template import (
     TemplateCreate,
@@ -43,6 +49,8 @@ from app.schemas.sample_column import (
 __all__ = [
     "ApprovalActionRequest",
     "ApprovalActionResponse",
+    "ApprovalTokenInfoResponse",
+    "ApprovalTokenTemplateInfo",
     "DomainResponse",
     "TemplateApprovalResponse",
     "TemplateColumnCreate",

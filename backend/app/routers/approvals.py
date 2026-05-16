@@ -15,19 +15,21 @@ links from emails.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database.database import get_db
 from app.models.domain import Domain
 from app.models.template import Template
+from app.models.template_reviewer import TemplateReviewer
 from app.schemas.approval_action import (
     ApprovalActionRequest,
     ApprovalActionResponse,
 )
 from app.services.approval.action import record_approval_decision
 from app.services.approval.emails import send_approval_decision_email
+from app.services.approval.validation import get_valid_approval_by_token
 
 from app.services.approval.completion import (
     is_template_fully_approved,
@@ -37,6 +39,10 @@ from app.services.approval.ddl_trigger import (
     trigger_ddl_for_approved_template,
 )
 
+from app.schemas.approval_token_info import (
+    ApprovalTokenInfoResponse,
+    ApprovalTokenTemplateInfo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -259,6 +265,86 @@ def reject_via_email_link(
     )
     return HTMLResponse(content=html, status_code=status.HTTP_200_OK)
 
+
+# ================================================
+# GET endpoint (frontend approval page)
+# ================================================
+
+@router.get(
+    "/{token}",
+    response_model=ApprovalTokenInfoResponse,
+    summary="Get approval details by token",
+    description=(
+        "Returns template + reviewer info for a given approval "
+        "token. Used by the frontend approval page to render the "
+        "review form before the reviewer makes a decision. "
+        "Returns 404 if token is invalid, 410 if already used "
+        "or expired."
+    ),
+)
+def get_approval_info(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Look up an approval by its token and return template + reviewer
+    info for display on the frontend approval page.
+
+    The validation helper raises 404/410 on bad tokens; the frontend
+    catches the 410 and shows a "you already decided" thank-you
+    page using the error's detail message.
+    """
+    # Raises HTTPException(404) if invalid, HTTPException(410) if
+    # used or expired. The frontend handles both as render states.
+    approval = get_valid_approval_by_token(db, token)
+
+    # Fetch the template
+    template = (
+        db.query(Template).filter(Template.id == approval.template_id).first()
+    )
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template no longer exists.",
+        )
+
+    # Fetch the domain (for display name)
+    domain = (
+        db.query(Domain).filter(Domain.id == template.domain_id).first()
+    )
+    if not domain:
+        # Defensive - should never happen since templates have NOT NULL FK
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Domain reference is missing on this template.",
+        )
+
+    # Find this reviewer's role (required vs optional). We match
+    # by email on the template_reviewers table.
+    reviewer = (
+        db.query(TemplateReviewer)
+        .filter(
+            TemplateReviewer.template_id == template.id,
+            TemplateReviewer.reviewer_email == approval.reviewer_email,
+        )
+        .first()
+    )
+    reviewer_type = reviewer.reviewer_type if reviewer else "required"
+
+    return ApprovalTokenInfoResponse(
+        reviewer_email=approval.reviewer_email,
+        reviewer_name=approval.reviewer_name or approval.reviewer_email,
+        reviewer_type=reviewer_type,
+        template=ApprovalTokenTemplateInfo(
+            id=template.id,
+            name=template.name,
+            display_name=template.display_name,
+            description=template.description,
+            fully_qualified_name=template.fully_qualified_name,
+            domain_name=domain.name,
+        ),
+        token_expires_at=approval.token_expires_at,
+    )
 
 # ================================================
 # POST endpoint (programmatic use)
