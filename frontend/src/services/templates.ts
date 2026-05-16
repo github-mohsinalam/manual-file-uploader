@@ -111,3 +111,23 @@ export async function parseSampleFile(
   )
   return response.data
 }
+
+
+/**
+ * Submit a Draft template for approval.
+ *
+ * Backend endpoint: POST /api/v1/templates/{id}/submit
+ *
+ * The backend validates the template (has columns, has at least
+ * one required reviewer), creates approval rows with tokens,
+ * transitions the status to "Pending Approval", and schedules
+ * approval-request emails to all reviewers.
+ *
+ * Returns the updated template (status will be "Pending Approval").
+ */
+export async function submitTemplate(id: string): Promise<Template> {
+  const response = await api.post<Template>(
+    `/api/v1/templates/${id}/submit`
+  )
+  return response.data
+}
