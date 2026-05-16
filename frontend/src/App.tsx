@@ -29,6 +29,7 @@ import NotFound from '@/pages/NotFound'
 import TemplateCreateBasics from '@/pages/TemplateCreateBasics'
 import TemplateCreateColumns from '@/pages/TemplateCreateColumns'
 import TemplateCreateReviewers from '@/pages/TemplateCreateReviewers'
+import TemplateCreateReview from '@/pages/TemplateCreateReview'
 
 function App() {
   return (
@@ -43,6 +44,7 @@ function App() {
           <Route path="/templates/new" element={<TemplateCreateBasics />} />
           <Route path="/templates/new/:id/columns" element={<TemplateCreateColumns />} />
           <Route path="/templates/new/:id/reviewers" element={<TemplateCreateReviewers />} />
+          <Route path="/templates/new/:id/review" element={<TemplateCreateReview />} />
           <Route path="/templates/:id" element={<TemplateDetail />} />
           <Route path="/uploads" element={<UploadsList />} />
           <Route path="/domains" element={<Domains />} />
