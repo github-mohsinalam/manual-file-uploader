@@ -402,11 +402,13 @@ function ActionButtons({
         <>
           <Button
             variant="outline"
-            onClick={() => alert('Edit flow lands in a future task.')}
+            onClick={() =>
+              onNavigate(`/templates/new/${template.id}/columns`)
+            }
           >
             <Pencil size={14} />
             Edit
-          </Button>
+        </Button>
           <Button
             onClick={() =>
               alert('Submit-for-approval lands in a future task.')
