@@ -31,11 +31,15 @@ import TemplateCreateColumns from '@/pages/TemplateCreateColumns'
 import TemplateCreateReviewers from '@/pages/TemplateCreateReviewers'
 import TemplateCreateReview from '@/pages/TemplateCreateReview'
 import TemplateWizardEntry from '@/pages/TemplateWizardEntry'
+import ApprovalPage from '@/pages/ApprovalPage'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public route - no Layout (no sidebar, no nav).
+          Used by reviewers landing from email links. */}
+        <Route path="/approve" element={<ApprovalPage />} />
         {/* Layout wraps every page below it */}
         <Route element={<Layout />}>
           {/* Root URL redirects to /templates */}
