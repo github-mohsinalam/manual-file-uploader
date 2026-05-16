@@ -30,6 +30,7 @@ import TemplateCreateBasics from '@/pages/TemplateCreateBasics'
 import TemplateCreateColumns from '@/pages/TemplateCreateColumns'
 import TemplateCreateReviewers from '@/pages/TemplateCreateReviewers'
 import TemplateCreateReview from '@/pages/TemplateCreateReview'
+import TemplateWizardEntry from '@/pages/TemplateWizardEntry'
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
 
           <Route path="/templates" element={<TemplatesList />} />
           <Route path="/templates/new" element={<TemplateCreateBasics />} />
+          <Route path="/templates/new/:id" element={<TemplateWizardEntry />} />
           <Route path="/templates/new/:id/columns" element={<TemplateCreateColumns />} />
           <Route path="/templates/new/:id/reviewers" element={<TemplateCreateReviewers />} />
           <Route path="/templates/new/:id/review" element={<TemplateCreateReview />} />

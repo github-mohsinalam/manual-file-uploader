@@ -403,7 +403,7 @@ function ActionButtons({
           <Button
             variant="outline"
             onClick={() =>
-              onNavigate(`/templates/new/${template.id}/columns`)
+              onNavigate(`/templates/new/${template.id}`)
             }
           >
             <Pencil size={14} />
