@@ -183,7 +183,7 @@ def root():
 from app.routers import (
     health, domains, templates, 
     template_columns, template_reviewers,
-    approvals, uploads
+    approvals, uploads,template_approvals
     )
 
 app.include_router(health.router, prefix="/api/v1")
@@ -193,3 +193,4 @@ app.include_router(template_columns.router, prefix="/api/v1")
 app.include_router(template_reviewers.router, prefix="/api/v1")
 app.include_router(approvals.router, prefix="/api/v1")
 app.include_router(uploads.router, prefix="/api/v1")
+app.include_router(template_approvals.router, prefix="/api/v1")
