@@ -12,6 +12,7 @@
 
 import { api } from '@/lib/api/client'
 import type { UploadHistory, UploadSummary } from '@/types'
+import type { UploadValidationError } from '@/types'
 
 /**
  * Submit a file for upload against a template.
@@ -72,6 +73,25 @@ export async function listUploads(
     {
       params: templateId ? { template_id: templateId } : undefined,
     }
+  )
+  return response.data
+}
+
+
+
+/**
+ * Fetch validation errors for an upload.
+ *
+ * Backend endpoint: GET /api/v1/uploads/{upload_id}/errors
+ *
+ * Returns one row per bad cell from Polars validation. Empty
+ * for successful uploads.
+ */
+export async function listUploadErrors(
+  uploadId: string
+): Promise<UploadValidationError[]> {
+  const response = await api.get<UploadValidationError[]>(
+    `/api/v1/uploads/${uploadId}/errors`
   )
   return response.data
 }
