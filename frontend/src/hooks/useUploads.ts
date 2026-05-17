@@ -1,22 +1,22 @@
 /**
- * useUploads - fetch the list of uploads.
+ * useUploads - fetch the list of uploads with server-side
+ * filtering.
  *
- * Currently fetches all uploads, optionally scoped to a template.
- * Filters (status, search) are applied client-side because the
- * backend's GET /uploads endpoint doesn't yet support them.
- *
- * For large datasets this should move to server-side filtering,
- * but at our scale (likely under a few hundred uploads) client-
- * side filtering is fine and gives us instant feedback.
+ * Filters are part of the queryKey so different filter
+ * combinations are cached separately. Switching filters
+ * triggers a refetch (or hits the cache if previously
+ * loaded).
  */
 
 import { useQuery } from '@tanstack/react-query'
-import { listUploads } from '@/services/uploads'
+import { listUploads, type UploadsListFilters } from '@/services/uploads'
 import type { UploadHistory } from '@/types'
 
-export function useUploads(templateId?: string) {
+export function useUploads(filters: UploadsListFilters = {}) {
   return useQuery<UploadHistory[]>({
-    queryKey: ['uploads', templateId],
-    queryFn: () => listUploads(templateId),
+    // queryKey includes the filters object so different filter
+    // combinations are cached independently.
+    queryKey: ['uploads', filters],
+    queryFn: () => listUploads(filters),
   })
 }

@@ -64,15 +64,39 @@ export async function getUpload(id: string): Promise<UploadHistory> {
   return response.data
 }
 
-/** List uploads, optionally filtered by template. */
+/**
+ * Filter parameters for listing uploads.
+ *
+ * All fields optional. Maps directly to the backend's
+ * query params on GET /uploads.
+ */
+export interface UploadsListFilters {
+  template_id?: string
+  uploaded_by?: string
+  status?: string
+  limit?: number
+  offset?: number
+}
+
+/**
+ * List uploads with optional filtering.
+ */
 export async function listUploads(
-  templateId?: string
+  filters?: UploadsListFilters
 ): Promise<UploadHistory[]> {
+  // Strip undefined and empty values from params so axios
+  // doesn't serialize them. (axios skips undefined; we also
+  // strip empty strings to avoid URL noise.)
+  const params: Record<string, string | number> = {}
+  if (filters?.template_id) params.template_id = filters.template_id
+  if (filters?.uploaded_by) params.uploaded_by = filters.uploaded_by
+  if (filters?.status) params.status = filters.status
+  if (filters?.limit !== undefined) params.limit = filters.limit
+  if (filters?.offset !== undefined) params.offset = filters.offset
+
   const response = await api.get<UploadHistory[]>(
     '/api/v1/uploads',
-    {
-      params: templateId ? { template_id: templateId } : undefined,
-    }
+    { params }
   )
   return response.data
 }

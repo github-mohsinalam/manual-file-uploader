@@ -90,15 +90,26 @@ export default function UploadsList() {
     setSearchParams(next)
   }
 
-  const uploadsQuery = useUploads()
+  // Build server-side filter object from URL state.
+  const filters = {
+    ...(statusFilter !== 'all' && { status: statusFilter }),
+  }
+  const uploadsQuery = useUploads(filters)
   const templatesQuery = useTemplates()
 
-  // Apply filters client-side. Cheap at our scale.
-  const filtered = filterUploads(
-    uploadsQuery.data ?? [],
-    statusFilter,
-    debouncedSearch
-  )
+  // Server-side filtering applies status (via queryKey).
+  // Search is still client-side because the backend's GET
+  // /uploads endpoint doesn't expose a filename-search param.
+  // Filtering by filename here on the page is fine - it's
+  // applied against the already-filtered server response.
+  const fetched = uploadsQuery.data ?? []
+  const filtered = debouncedSearch
+    ? fetched.filter((u) =>
+        u.original_filename
+          .toLowerCase()
+          .includes(debouncedSearch.toLowerCase())
+      )
+    : fetched
 
   // Build a templateId -> Template lookup for display.
   const templateById = new Map<string, Template>()
@@ -276,30 +287,4 @@ function TableSkeleton() {
       </div>
     </Card>
   )
-}
-
-/**
- * Apply status + search filters to an upload list.
- * Both filters are case-insensitive; search matches against
- * the original filename.
- */
-function filterUploads(
-  uploads: UploadHistory[],
-  statusFilter: UploadStatus | 'all',
-  search: string
-): UploadHistory[] {
-  let result = uploads
-
-  if (statusFilter !== 'all') {
-    result = result.filter((u) => u.status === statusFilter)
-  }
-
-  if (search) {
-    const needle = search.toLowerCase()
-    result = result.filter((u) =>
-      u.original_filename.toLowerCase().includes(needle)
-    )
-  }
-
-  return result
 }
