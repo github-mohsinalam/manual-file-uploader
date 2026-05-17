@@ -88,3 +88,5 @@ frontend/dist/
 # ================================================
 docs/project_state.md
 docs/typescript_intro.md
+docs/future_improvements.md
+docs/implementation_decisions.md
