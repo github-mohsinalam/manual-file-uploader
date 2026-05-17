@@ -164,7 +164,7 @@ export default function TemplateCreateReviewers() {
 
   return (
     <WizardShell
-      currentStep={3}
+      currentStep={4}
       title="Add reviewers"
       description="Configure who must approve this template before it goes live."
     >

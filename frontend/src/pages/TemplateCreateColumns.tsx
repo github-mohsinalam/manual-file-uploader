@@ -252,7 +252,7 @@ export default function TemplateCreateColumns() {
 
   return (
     <WizardShell
-      currentStep={2}
+      currentStep={3}
       title="Configure columns"
       description="Upload a sample file to auto-detect columns, or add them manually."
     >
@@ -380,7 +380,7 @@ export default function TemplateCreateColumns() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => navigate('/templates/new')}
+          onClick={() => navigate(`/templates/new/${id}/settings`)}
           disabled={saveMutation.isPending}
         >
           Back

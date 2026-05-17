@@ -34,6 +34,7 @@ import TemplateWizardEntry from '@/pages/TemplateWizardEntry'
 import ApprovalPage from '@/pages/ApprovalPage'
 import TemplateUpload from '@/pages/TemplateUpload'
 import UploadProgress from '@/pages/UploadProgress'
+import TemplateCreateSettings from '@/pages/TemplateCreateSettings'
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
           <Route path="/templates/new" element={<TemplateCreateBasics />} />
           <Route path="/templates/new/:id" element={<TemplateWizardEntry />} />
           <Route path="/templates/:id/upload" element={<TemplateUpload />} />
+          <Route path="/templates/new/:id/settings" element={<TemplateCreateSettings />} />
           <Route path="/templates/new/:id/columns" element={<TemplateCreateColumns />} />
           <Route path="/templates/new/:id/reviewers" element={<TemplateCreateReviewers />} />
           <Route path="/templates/new/:id/review" element={<TemplateCreateReview />} />

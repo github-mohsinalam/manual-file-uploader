@@ -99,7 +99,7 @@ export default function TemplateCreateBasics() {
       // Bust the cache so the list page refreshes.
       queryClient.invalidateQueries({ queryKey: ['templates'] })
       // Move to step 2.
-      navigate(`/templates/new/${newTemplate.id}/columns`)
+      navigate(`/templates/new/${newTemplate.id}/settings`)
     },
   })
 
@@ -284,7 +284,7 @@ export default function TemplateCreateBasics() {
           form="template-basics-form"
           disabled={createMutation.isPending}
         >
-          {createMutation.isPending ? 'Creating...' : 'Next: Columns'}
+          {createMutation.isPending ? 'Creating...' : 'Next: Settings'}
         </Button>
       </div>
     </WizardShell>

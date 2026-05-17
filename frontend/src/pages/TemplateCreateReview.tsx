@@ -98,7 +98,7 @@ export default function TemplateCreateReview() {
 
   if (templateQuery.error) {
     return (
-      <WizardShell currentStep={4} title="Review and submit">
+      <WizardShell currentStep={5} title="Review and submit">
         <Card>
           <CardContent className="pt-6">
             <p className="text-red-600">
@@ -133,7 +133,7 @@ export default function TemplateCreateReview() {
 
   return (
     <WizardShell
-      currentStep={4}
+      currentStep={5}
       title="Review and submit"
       description="Confirm everything is correct. Once submitted, the template enters the approval workflow."
     >
@@ -430,7 +430,7 @@ function SummaryRow({
  */
 function ReviewSkeleton() {
   return (
-    <WizardShell currentStep={4} title="Review and submit">
+    <WizardShell currentStep={5} title="Review and submit">
       <Skeleton className="h-32 w-full" />
       <Skeleton className="h-48 w-full" />
       <Skeleton className="h-32 w-full" />

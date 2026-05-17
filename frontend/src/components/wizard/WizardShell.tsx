@@ -24,9 +24,10 @@ export interface WizardStep {
 
 const WIZARD_STEPS: WizardStep[] = [
   { number: 1, label: 'Basics' },
-  { number: 2, label: 'Columns' },
-  { number: 3, label: 'Reviewers' },
-  { number: 4, label: 'Review' },
+  { number: 2, label: 'Settings' },
+  { number: 3, label: 'Columns' },
+  { number: 4, label: 'Reviewers' },
+  { number: 5, label: 'Review' },
 ]
 
 interface WizardShellProps {
