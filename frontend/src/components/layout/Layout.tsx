@@ -11,10 +11,10 @@ import { Sidebar } from '@/components/layout/Sidebar'
 
 export function Layout() {
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-100 p-3 gap-3">
       <Sidebar />
-      <main className="flex-1 p-8">
-        <div className="max-w-5xl mx-auto">
+      <main className="flex-1 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="p-8 max-w-5xl mx-auto">
           <Outlet />
         </div>
       </main>

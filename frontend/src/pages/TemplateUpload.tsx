@@ -314,7 +314,7 @@ export default function TemplateUpload() {
               className={cn(
                 'cursor-pointer rounded-lg border-2 border-dashed p-12 text-center transition-colors',
                 isDragOver
-                  ? 'border-blue-500 bg-blue-50'
+                  ? 'border-indigo-500 bg-indigo-50'
                   : 'border-slate-300 hover:border-slate-400'
               )}
             >
@@ -371,7 +371,7 @@ export default function TemplateUpload() {
               </div>
               <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                 <div
-                  className="bg-blue-600 h-full transition-all duration-150"
+                  className="bg-indigo-600 h-full transition-all duration-150"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>

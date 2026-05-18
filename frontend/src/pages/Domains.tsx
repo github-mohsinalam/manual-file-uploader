@@ -54,11 +54,11 @@ export default function Domains() {
       {data && data.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {data.map((domain) => (
-            <Card key={domain.id}>
+            <Card key={domain.id} className="border-indigo-200">
               <CardHeader>
                 <div className="flex items-start gap-3">
-                  <div className="bg-slate-100 p-2 rounded-md">
-                    <Database size={20} className="text-slate-700" />
+                  <div className="bg-indigo-50 p-2 rounded-md">
+                    <Database size={20} className="text-indigo-700" />
                   </div>
                   <div className="flex-1">
                     <CardTitle>{domain.name}</CardTitle>
