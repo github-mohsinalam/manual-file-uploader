@@ -34,18 +34,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 
 import { useTemplate } from '@/hooks/useTemplate'
-import { useTemplateColumns } from '@/hooks/useTemplateColumns'
 import { submitUpload } from '@/services/uploads'
 import { toApiError } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
@@ -61,7 +51,6 @@ export default function TemplateUpload() {
   const navigate = useNavigate()
 
   const templateQuery = useTemplate(id)
-  const columnsQuery = useTemplateColumns(id)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -165,7 +154,6 @@ export default function TemplateUpload() {
   }
 
   const template = templateQuery.data
-  const columns = columnsQuery.data ?? []
 
   // Guardrail - only Approved templates accept uploads. The
   // backend rejects with 400 anyway, but we give a friendlier
@@ -228,63 +216,6 @@ export default function TemplateUpload() {
           </span>
         </p>
       </div>
-
-      {/* Expected schema reference */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Expected schema</CardTitle>
-          <CardDescription>
-            Your file must have headers matching these columns.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {columnsQuery.isLoading && <Skeleton className="h-24 w-full" />}
-          {columns.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Column</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Flags</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {columns
-                  .filter((c) => c.is_included)
-                  .map((col) => (
-                    <TableRow key={col.id}>
-                      <TableCell className="font-medium">
-                        {col.column_name}
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-sm">{col.data_type}</code>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1 flex-wrap">
-                          {!col.is_nullable && (
-                            <Badge variant="outline">NOT NULL</Badge>
-                          )}
-                          {col.is_unique && (
-                            <Badge variant="outline">UNIQUE</Badge>
-                          )}
-                          {col.is_pii && (
-                            <Badge
-                              variant="outline"
-                              className="bg-amber-50 text-amber-800 border-amber-200"
-                            >
-                              PII
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
       {/* File picker / drop zone */}
       <Card>
         <CardHeader>
