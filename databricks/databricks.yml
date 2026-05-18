@@ -40,7 +40,13 @@ targets:
   dev:
     mode: development
     default: true
+    # Workspace authentication comes from your local Databricks CLI
+    # profile in ~/.databrickscfg (Windows: %USERPROFILE%\.databrickscfg).
+    # Run `databricks configure` once on a new machine - it writes the
+    # workspace host and a personal access token under [DEFAULT].
+    # Keeping the host out of this file means the bundle is reusable
+    # across workspaces without editing version-controlled YAML.
     workspace:
-      host: adb-7405617857783898.18.azuredatabricks.net
+      profile: DEFAULT
     variables:
       catalog_name: manualuploads_dev
